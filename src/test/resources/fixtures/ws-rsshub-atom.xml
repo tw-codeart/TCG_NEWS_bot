@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Synthetic WS Atom fixture</title><id>urn:ws:test</id><updated>2026-10-05T23:30:00Z</updated>
+  <entry>
+    <id>urn:ws:600</id><title type="html">&lt;b&gt;今日のカード Atom公開&lt;/b&gt;</title>
+    <link rel="alternate" href="https://x.com/wstcg/status/600"/>
+    <published>2026-10-05T23:30:00Z</published><updated>2026-10-06T01:00:00Z</updated>
+    <content type="html">&lt;p&gt;今日のカード Atom公開&lt;/p&gt;&lt;img src="https://pbs.twimg.com/media/atom-one.png"&gt;</content>
+    <link rel="enclosure" type="image/png" href="https://pbs.twimg.com/media/atom-two.png"/>
+  </entry>
+  <entry><id>urn:ws:700</id><title>今日のカード 更新日時のみ</title>
+    <link href="https://x.com/wstcg/status/700"/><updated>2026-10-06T01:00:00Z</updated>
+  </entry>
+</feed>

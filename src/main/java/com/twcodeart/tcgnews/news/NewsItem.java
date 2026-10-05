@@ -40,6 +40,8 @@ public class NewsItem {
 
     private LocalDate publishedDate;
 
+    private Instant publishedAt;
+
     @Column(length = 2048)
     private String imageUrl;
 
@@ -64,12 +66,19 @@ public class NewsItem {
     public NewsItem(Game game, NewsCategory category, String title, String productName,
                     LocalDate revealDate, LocalDate publishedDate, String imageUrl,
                     String sourceUrl, String contentHash) {
+        this(game, category, title, productName, revealDate, publishedDate, null, imageUrl, sourceUrl, contentHash);
+    }
+
+    public NewsItem(Game game, NewsCategory category, String title, String productName,
+                    LocalDate revealDate, LocalDate publishedDate, Instant publishedAt,
+                    String imageUrl, String sourceUrl, String contentHash) {
         this.game = Objects.requireNonNull(game, "game must not be null");
         this.category = Objects.requireNonNull(category, "category must not be null");
         this.title = title;
         this.productName = productName;
         this.revealDate = revealDate;
         this.publishedDate = publishedDate;
+        this.publishedAt = publishedAt;
         this.imageUrl = imageUrl;
         this.sourceUrl = requireText(sourceUrl, "sourceUrl");
         this.contentHash = requireText(contentHash, "contentHash");
@@ -113,6 +122,10 @@ public class NewsItem {
 
     public LocalDate getPublishedDate() {
         return publishedDate;
+    }
+
+    public Instant getPublishedAt() {
+        return publishedAt;
     }
 
     public String getImageUrl() {

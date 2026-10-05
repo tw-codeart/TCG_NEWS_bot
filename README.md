@@ -3,14 +3,14 @@
 A Java portfolio project for aggregating official trading card game news,
 starting with Japanese Weiß Schwarz.
 
-## Current status: Phase 8 (message formatter)
+## Current status: Phase 8 plus optional RSSHub source
 
 The following source code and configuration have been added:
 
 - A Java 17 / Spring Boot 3.5.16 Maven project.
 - A JPA `NewsItem` entity and Spring Data repository.
 - Categories for card reveals, product news, card list news, and general news.
-- Fields for title, product name, reveal date, publication date, official image and source URLs,
+- Fields for title, product name, reveal date, publication date/time, official image and source URLs,
   content hash, and an automatically assigned creation timestamp.
 - A local file-based H2 database configuration.
 - A `NewsSource` interface with a source identifier, game, and news-fetch contract.
@@ -36,6 +36,18 @@ The following source code and configuration have been added:
   and reports saved, duplicate, and unprocessed item counts.
 - A `NotificationFormatter` interface and a Spring-managed
   `PlainTextNotificationFormatter` for transport-independent notification text.
+- An optional, disabled-by-default `WsRssHubNewsSource` for official `@wstcg`
+  posts mentioning `今日のカード`, with separate HTTP retrieval and RSS/Atom parsing.
+
+**RSSHub verification (2026-10-05):** `mvn package` compiled the project, ran all
+57 tests with no failures, errors, or skipped tests, and built the Spring Boot JAR
+using Java 17 / Maven 3.9.9. The 17 added tests use synthetic local RSS/Atom fixtures,
+mocked HTTP, Spring configuration contexts, and temporary in-memory H2. They cover
+filtering, single/multiple images, missing metadata, invalid entries/XML, empty feeds,
+HTTP errors, interrupts, optional configuration, persistence, and repeated fetches.
+The RSS fixture returns 6 occurrences: the first fetch saves 5 and skips 1 duplicate;
+the second saves 0 and skips all 6. No live RSSHub instance was configured.
+**Live RSSHub feed was not verified.** No newest live entry date is claimed.
 
 **Phase 8 verification (2026-10-05):** Maven compilation and all 40 tests passed
 using Java 17 and Maven 3.9.9. The 5 added pure JUnit tests cover card reveals,
@@ -192,6 +204,77 @@ below preserve them.
 Only the first list page is fetched. Pagination and linked-page content extraction
 are not implemented. No detail-page requests or image downloads are made by this source.
 
+## Optional RSSHub source
+
+The official WS website remains the primary source. RSSHub is a supplementary
+source; this application only consumes its RSS/Atom output. RSSHub deployment,
+X authentication, cookies, and any `TWITTER_AUTH_TOKEN` configuration belong to
+the external RSSHub service and are not managed by the Java application.
+
+Configuration defaults:
+
+```yaml
+rsshub:
+  enabled: false
+  base-url: ""
+  ws-route: /twitter/user/wstcg
+```
+
+To enable it, set `RSSHUB_ENABLED=true` and `RSSHUB_BASE_URL` to the base URL of
+your separately configured instance (for example `https://your-rsshub.example/`).
+`RSSHUB_WS_ROUTE` optionally overrides the route, including route query options.
+These are Spring environment placeholders in `application.yml`. No public instance
+is selected automatically. When enabled, a missing or invalid base URL causes a
+clear startup error; when disabled, no RSSHub client/source bean is registered.
+`POST /api/fetch` automatically includes the enabled source, with the existing
+per-source failure isolation. No polling or startup fetching is added.
+
+ROME 2.1.0 is the only new direct Maven dependency. It parses RSS/Atom XML and
+publication timestamps; existing Jsoup handles embedded HTML. HTTP retrieval uses
+the Java 17 HTTP client, with connection/request timeouts and a required HTTP 200.
+XML doctypes are disallowed. Retrieval and whole-feed XML failures are logged and
+wrapped in `NewsSourceException`. Empty feeds return no items. Invalid individual
+URLs or oversized post text are logged and skipped while valid entries continue.
+Structurally broken XML can still invalidate the entire feed.
+
+Only entries whose original HTTPS post URL is an `@wstcg` status on `x.com` or
+`twitter.com` are accepted. Post URLs are canonicalized to
+`https://x.com/wstcg/status/<id>`. The plain title or body must contain the literal
+`今日のカード`; unrelated entries are ignored. Script/style/iframe content and
+HTML blockquotes are excluded. This is a text filter, not semantic classification;
+other quote/retweet layouts may need future fixtures. Titles retain original text
+without translation; text beyond the existing 1000-character model limit is skipped.
+
+Each supported image URL becomes a separate `CARD_REVEAL` item. Images are read
+from embedded HTML and image enclosures, accepting HTTPS `pbs.twimg.com/media/`
+and official `ws-tcg.com/wordpress/wp-content/uploads/` URLs. Avatars and unknown
+image hosts are ignored with warnings. Image bytes are never requested or stored.
+Proxy image URLs and MediaRSS-only markup are not supported. Image URL query
+parameters are retained. Repeated attachment occurrences are returned to the
+central ingestion service, which handles duplicate decisions.
+
+A matching post without a supported image produces one metadata-only item with
+`imageUrl=null`; no card count or card text is inferred. Missing/invalid publication
+timestamps remain null. `publishedAt` stores the supplied instant, and
+`publishedDate` is its date in Asia/Tokyo. An Atom update timestamp is not substituted
+for publication time. `productName` and `revealDate` remain null: posting time is
+not evidence of a card's reveal date. JPA assigns `createdAt` on persistence.
+The existing formatter can display the original title and links; it omits the
+missing reveal date instead of presenting the posting date as a reveal date.
+
+The SHA-256 identity uses game, category, canonical original post URL, and image
+URL (empty for metadata-only posts), separated by newlines. A changed title/date
+does not create another item for the same post/image, and existing records are
+not updated. Distinct images from one post stay separate. If an image appears
+later after a metadata-only fetch, it becomes an additional item. Different URL
+renditions of an image can still create separate records. The same card on the
+website and X may have different URLs/hashes and be stored twice; fuzzy matching
+or cross-source card identity is not implemented.
+
+The route `/twitter/user/wstcg` is an example, not a verified availability claim.
+Feed freshness, media completeness, route support, and X access depend on the
+external RSSHub instance. **Live RSSHub feed was not verified.**
+
 ## News deduplication scope
 
 `NewsDeduplicationPolicy` checks persisted records in this order:
@@ -215,8 +298,8 @@ The service calls `saveAndFlush` before checking the next item. Subsequent items
 in the same batch and later fetches can therefore find the saved record. Sources
 and parsers do not perform duplicate checks. The shared policy uses model fields,
 not WS selectors or individual source IDs, so future matching rules can be added
-there without changing source implementations. No fuzzy matching, RSSHub, or X
-integration is implemented.
+there without changing source implementations. No fuzzy or semantic cross-source
+matching is implemented. RSSHub supplements the website through this same policy.
 
 Comparisons use the stored URL strings exactly; URL aliases, rewritten image URLs,
 and semantically equivalent announcements are not matched. An edited news title
@@ -224,7 +307,10 @@ or date can remain a separate announcement. Existing duplicate rows are not
 automatically cleaned up, and incoming metadata does not update a matched row.
 The database enforces unique hashes only. Concurrent fetches with different hashes
 but the same composite identity can still race; composite database constraints or
-coordination are not implemented. No schema change is required in this phase.
+coordination are not implemented. The deduplication rules require no new schema
+constraints; the RSSHub addition introduces only the nullable `publishedAt` field.
+Timestamp persistence was tested in fresh H2 databases; upgrading an existing
+file-based database has not been separately verified.
 
 ## REST API
 
@@ -236,7 +322,7 @@ coordination are not implemented. No schema change is required in this phase.
 - `POST /api/fetch` takes no request body and runs the configured sources
   sequentially. The controller delegates to services; it contains no scraping,
   parsing, or deduplication rules. The WS card source performs product discovery,
-  and both WS sources use the existing ingestion and deduplication policy.
+  and all enabled WS sources use the existing ingestion and deduplication policy.
 
 With the application running on the default local port:
 
@@ -333,7 +419,8 @@ Database files and build output are excluded from Git. The H2 console is disable
 Automatic schema updates and the local database credentials are development settings.
 Tests use an embedded database instead of the application's data files.
 `revealDate` represents the card-reveal date; `publishedDate` represents the news
-publication date. `createdAt` is an instant assigned when a record is first persisted.
+publication date. Optional `publishedAt` preserves a supplied publication instant.
+`createdAt` is an instant assigned when a record is first persisted.
 Non-card news can omit image and reveal fields.
 Card reveals and information news use metadata hashes and the centralized identity
 checks described above.

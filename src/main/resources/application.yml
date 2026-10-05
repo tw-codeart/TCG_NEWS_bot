@@ -16,3 +16,8 @@ spring:
   h2:
     console:
       enabled: false
+
+rsshub:
+  enabled: ${RSSHUB_ENABLED:false}
+  base-url: ${RSSHUB_BASE_URL:}
+  ws-route: ${RSSHUB_WS_ROUTE:/twitter/user/wstcg}

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel>
+  <title>Synthetic WS fixture</title><link>https://x.com/wstcg</link><description>Local test data only</description>
+  <item><title>今日のカード テスト公開</title><link>https://twitter.com/wstcg/status/100?s=20</link>
+    <pubDate>Mon, 05 Oct 2026 23:30:00 GMT</pubDate>
+    <description><![CDATA[<p>今日のカード テスト公開</p><img src="https://pbs.twimg.com/media/test-one.jpg"><img src="https://pbs.twimg.com/profile_images/avatar.jpg">]]></description>
+  </item>
+  <item><title>イベントのお知らせ</title><link>https://x.com/wstcg/status/110</link>
+    <description><![CDATA[<p>大会開催</p><img src="https://pbs.twimg.com/media/event.jpg">]]></description>
+  </item>
+  <item><title>今日のカード 不正リンク</title><link>https://x.com/other/status/120</link></item>
+  <item><title>今日のカード</title><link>not a URI</link></item>
+  <item><title>今日のカード 複数公開</title><link>https://x.com/wstcg/status/200</link>
+    <pubDate>Mon, 05 Oct 2026 23:30:00 GMT</pubDate>
+    <description><![CDATA[<div><p>今日のカード 複数公開</p><div><img src="https://pbs.twimg.com/media/test-two?format=jpg&amp;name=orig"><img src="https://ws-tcg.com/wordpress/wp-content/uploads/test-three.png"></div><blockquote>引用 <img src="https://pbs.twimg.com/media/quote.jpg"></blockquote><script>今日のカード</script><img src="data:image/png;base64,test"><img src="https://unofficial.example/card.jpg"></div>]]></description>
+  </item>
+  <item><title>今日のカード 画像なし</title><link>https://x.com/wstcg/status/300</link>
+    <pubDate>Mon, 05 Oct 2026 23:30:00 GMT</pubDate><description>今日のカード 画像なし</description>
+  </item>
+  <item><description><![CDATA[<p>今日のカード 日時なし</p><div><img src="https://pbs.twimg.com/media/test-four.png"></div>]]></description>
+    <link>https://x.com/wstcg/status/400</link>
+  </item>
+  <item><title>引用のみ</title><link>https://x.com/wstcg/status/500</link>
+    <description><![CDATA[<p>イベント</p><blockquote>今日のカード<img src="https://pbs.twimg.com/media/quoted.png"></blockquote><script>今日のカード</script>]]></description>
+  </item>
+  <item><title>今日のカード テスト公開</title><guid isPermaLink="true">https://x.com/wstcg/status/100</guid>
+    <description><![CDATA[<img src="https://pbs.twimg.com/media/test-one.jpg">]]></description>
+  </item>
+</channel></rss>
