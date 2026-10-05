@@ -17,6 +17,8 @@ import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -29,6 +31,9 @@ class WsCardRevealSourceTest {
     @Mock
     private WsProductPageClient client;
 
+    @Mock
+    private WsProductDiscoveryService discovery;
+
     @Test
     void continuesWithOtherDiscoveredProductUrlsAfterAnHttpFailure() throws Exception {
         Product failed = product("failed");
@@ -40,9 +45,12 @@ class WsCardRevealSourceTest {
             when(client.fetch(valid.getDetailUrl())).thenReturn(Jsoup.parse(fixture, "UTF-8", valid.getDetailUrl()));
         }
 
-        var source = new WsCardRevealSource(products, client, new WsCardRevealsParser());
+        var source = new WsCardRevealSource(products, client, new WsCardRevealsParser(), discovery);
         assertThat(source.fetchNews()).singleElement().satisfies(item ->
                 assertThat(item.getSourceUrl()).isEqualTo(valid.getDetailUrl()));
+        var order = inOrder(discovery, products);
+        order.verify(discovery).discoverProducts();
+        order.verify(products).findByGame(Game.WEISS_SCHWARZ);
     }
 
     @Test
@@ -52,19 +60,30 @@ class WsCardRevealSourceTest {
         when(products.findByGame(Game.WEISS_SCHWARZ)).thenReturn(List.of(product));
         when(client.fetch(product.getDetailUrl())).thenThrow(failure);
 
-        var source = new WsCardRevealSource(products, client, new WsCardRevealsParser());
+        var source = new WsCardRevealSource(products, client, new WsCardRevealsParser(), discovery);
         assertThatThrownBy(source::fetchNews).isInstanceOf(NewsSourceException.class)
                 .hasMessageContaining("All discovered WS product pages failed")
                 .hasCause(failure);
     }
 
     @Test
-    void returnsEmptyWithoutHttpRequestsWhenNoProductsHaveBeenDiscovered() throws NewsSourceException {
+    void returnsEmptyWithoutDetailRequestsWhenDiscoveryLeavesNoProducts() throws NewsSourceException {
         when(products.findByGame(Game.WEISS_SCHWARZ)).thenReturn(List.of());
-        var source = new WsCardRevealSource(products, client, new WsCardRevealsParser());
+        var source = new WsCardRevealSource(products, client, new WsCardRevealsParser(), discovery);
 
         assertThat(source.fetchNews()).isEmpty();
+        verify(discovery).discoverProducts();
         verifyNoInteractions(client);
+    }
+
+    @Test
+    void reportsCatalogDiscoveryFailureWithoutRequestingDetailPages() throws NewsSourceException {
+        NewsSourceException failure = new NewsSourceException("Discovery failed", new IOException("Timed out"));
+        when(discovery.discoverProducts()).thenThrow(failure);
+        var source = new WsCardRevealSource(products, client, new WsCardRevealsParser(), discovery);
+
+        assertThatThrownBy(source::fetchNews).isSameAs(failure);
+        verifyNoInteractions(products, client);
     }
 
     private Product product(String slug) {

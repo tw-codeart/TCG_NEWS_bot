@@ -3,7 +3,7 @@
 A Java portfolio project for aggregating official trading card game news,
 starting with Japanese Weiß Schwarz.
 
-## Current status: Phase 6
+## Current status: Phase 7
 
 The following source code and configuration have been added:
 
@@ -30,6 +30,23 @@ The following source code and configuration have been added:
   for the first official information-list page.
 - Information entries mapped to `PRODUCT_NEWS`, `CARD_LIST_NEWS`, or `NEWS`,
   retaining available metadata and leaving unavailable optional fields null.
+- A REST controller exposing stored news and a synchronous manual fetch endpoint.
+- A query service with newest-first ordering and an optional game filter.
+- A fetch service that invokes configured `NewsSource` beans, isolates failures,
+  and reports saved, duplicate, and unprocessed item counts.
+
+**Phase 7 verification (2026-10-05):** Maven compilation and all 35 tests passed
+using Java 17 and Maven 3.9.9. Seven new Spring Boot / MockMvc tests cover empty
+and populated news responses, ordering and the game filter, invalid filters,
+manual and repeated fetches, source failure isolation, all-source failure, and
+storage errors. These tests use temporary in-memory H2 and mocked sources that
+return freshly parsed local fixtures; they do not contact the official site.
+The combined fixtures produced 10 items: the first request saved 9 and skipped
+1 duplicate; the second saved 0 and skipped all 10. Two additional unit tests
+check partial persistence counts and continuation after persistence failure.
+One new source test checks product-discovery failure, and existing source tests
+now verify discovery precedes product-page requests. No live-site fetch or
+standalone HTTP-server check was performed for this phase.
 
 **Phase 6 verification (2026-10-05):** Maven compilation and all 25 tests passed
 using Java 17 and Maven 3.9.9. The 7 added in-memory H2 tests cover matching source
@@ -79,15 +96,14 @@ The source contract does not depend on WS page structure. Future games can add
 game enum values and source implementations without changing this interface.
 Product discovery is a catalog prerequisite, not a `NewsSource` implementation:
 catalog entries are not product-news announcements. `WsCardRevealSource` is the
-first concrete news source; `WsInformationSource` is the second. Fetch orchestration
-across all sources remains planned.
+first concrete news source; `WsInformationSource` is the second. `NewsFetchService`
+invokes the configured sources through this interface.
 
-REST endpoints and notifications are planned.
-From Spring/Java code, run
-`WsProductDiscoveryService.discoverProducts()` to populate the catalog, then call
-`NewsIngestionService.fetchAndSave(wsCardRevealSource)` to fetch and save reveals.
-For information news, call `NewsIngestionService.fetchAndSave(wsInformationSource)`.
-Startup and REST fetch triggers are not implemented.
+Use `POST /api/fetch` to trigger collection manually. The WS card-reveal source
+refreshes its product catalog with the existing discovery service before reading
+stored product URLs. From Spring/Java code, the single-source
+`NewsIngestionService.fetchAndSave(source)` method remains available.
+Startup/scheduled fetches and notifications are not implemented.
 
 ## Product discovery scope
 
@@ -128,11 +144,13 @@ occurrences in one batch and previously saved hashes are filtered by the ingesti
 service. A unique hash constraint also prevents duplicate inserts. The same image
 on a different dated reveal remains a distinct record.
 
-The source uses existing WS catalog rows and logs individual product-page failures
+The source refreshes the WS catalog, then uses its stored rows and logs individual product-page failures
 while continuing other pages. If every attempted page fails, it throws
 `NewsSourceException` with the first cause. Pages that successfully load without
 dated reveals are successful empty results. Parsing supports the observed accordion
 and image-list format; other HTML formats and sources have not been implemented.
+If catalog discovery fails, this source fails before detail requests; the API
+orchestrator still attempts other sources.
 
 ## Information news scope
 
@@ -200,6 +218,59 @@ The database enforces unique hashes only. Concurrent fetches with different hash
 but the same composite identity can still race; composite database constraints or
 coordination are not implemented. No schema change is required in this phase.
 
+## REST API
+
+- `GET /api/news` returns stored `NewsItem` records as a JSON array, ordered by
+  `createdAt` descending, then `id` descending as a tie-breaker. An empty database
+  returns `[]`. This minimal API returns all matching rows without pagination.
+- `GET /api/news?game=WEISS_SCHWARZ` applies an exact enum filter. Unknown game
+  values return HTTP 400 with `{"message":"Invalid game filter"}`.
+- `POST /api/fetch` takes no request body and runs the configured sources
+  sequentially. The controller delegates to services; it contains no scraping,
+  parsing, or deduplication rules. The WS card source performs product discovery,
+  and both WS sources use the existing ingestion and deduplication policy.
+
+With the application running on the default local port:
+
+```shell
+curl "http://localhost:8080/api/news"
+curl "http://localhost:8080/api/news?game=WEISS_SCHWARZ"
+curl -X POST "http://localhost:8080/api/fetch"
+```
+
+Example POST response from the local-fixture MockMvc test (not live-site counts):
+
+```json
+{
+  "fetched": 10,
+  "saved": 9,
+  "duplicates": 1,
+  "unprocessed": 0,
+  "successfulSources": 2,
+  "errors": []
+}
+```
+
+`fetched` counts items returned by sources, `saved` counts successful new saves,
+and `duplicates` counts actual duplicate decisions. `unprocessed` counts returned
+items left unsaved/unclassified when persistence stops mid-batch. Counts include
+known partial persistence results; a source that fails before returning items
+has no known fetched count and is reported in `errors`. No batch transaction is
+started, so earlier successful saves remain when a later item fails.
+
+HTTP 200 means at least one source completed (an empty result counts as success),
+or no sources were configured. Partial failures appear in `errors`, each containing
+`sourceId` and a short message; callers must check this list. If every configured
+source fails, the same summary is returned with HTTP 502. Full causes are logged
+on the server rather than exposed in JSON. News-query storage failures return
+HTTP 503 with `{"message":"News storage is unavailable"}`.
+
+Fetch requests are synchronous and can take time because product pages are visited
+sequentially. Per-product failures retain the existing source logging behavior;
+the API reports source-level failures, not every skipped page or parser entry.
+Concurrency limitations from Phase 6 still apply. Authentication, background jobs,
+and frontend interfaces are not implemented.
+
 ## Prerequisites and commands
 
 Install JDK 17 and Maven 3.6.3 or later, and ensure Maven uses JDK 17.
@@ -212,7 +283,7 @@ mvn test
 mvn spring-boot:run
 ```
 
-The web starter provides the future API runtime; no application endpoints exist yet.
+The web starter provides the REST API runtime described above.
 The H2 configuration uses `./data/tcg-news` relative to the working directory.
 Database files and build output are excluded from Git. The H2 console is disabled.
 Automatic schema updates and the local database credentials are development settings.
@@ -225,9 +296,8 @@ checks described above.
 
 ## Planned / Roadmap
 
-1. Phase 7: Add `GET /api/news`, `POST /api/fetch`, and isolation between sources.
-2. Phase 8: Add `NotificationSender` and `ConsoleNotificationSender`.
-3. Phase 9: Extend parser fixture coverage and news deduplication tests.
+1. Phase 8: Add `NotificationSender` and `ConsoleNotificationSender`.
+2. Phase 9: Extend parser fixture coverage and news deduplication tests.
 
 Future extension points: `CardTextExtractor` and `TranslationService` interfaces.
 Chinese translation, QQ / Discord delivery, and Yu-Gi-Oh! OCG / TCG support are

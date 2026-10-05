@@ -21,11 +21,14 @@ public class WsCardRevealSource implements NewsSource {
     private final ProductRepository products;
     private final WsProductPageClient client;
     private final WsCardRevealsParser parser;
+    private final WsProductDiscoveryService discovery;
 
-    public WsCardRevealSource(ProductRepository products, WsProductPageClient client, WsCardRevealsParser parser) {
+    public WsCardRevealSource(ProductRepository products, WsProductPageClient client,
+                              WsCardRevealsParser parser, WsProductDiscoveryService discovery) {
         this.products = products;
         this.client = client;
         this.parser = parser;
+        this.discovery = discovery;
     }
 
     @Override
@@ -40,6 +43,7 @@ public class WsCardRevealSource implements NewsSource {
 
     @Override
     public List<NewsItem> fetchNews() throws NewsSourceException {
+        discovery.discoverProducts();
         List<NewsItem> items = new ArrayList<>();
         int successfulPages = 0;
         Exception firstFailure = null;
