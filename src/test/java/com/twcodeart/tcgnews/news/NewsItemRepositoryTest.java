@@ -44,4 +44,22 @@ class NewsItemRepositoryTest {
         assertThat(reloaded.getContentHash()).isEqualTo(newsItem.getContentHash());
         assertThat(reloaded.getCreatedAt()).isNotNull();
     }
+
+    @Test
+    void persistsInformationPublicationDateAndOptionalNullFields() {
+        NewsItem information = new NewsItem(Game.WEISS_SCHWARZ, NewsCategory.NEWS,
+                "Official notice", null, null, LocalDate.of(2026, 9, 29),
+                null, "https://ws-tcg.com/information/test/", "b".repeat(64));
+        NewsItem saved = repository.saveAndFlush(information);
+        entityManager.clear();
+
+        NewsItem reloaded = repository.findById(saved.getId()).orElseThrow();
+        assertThat(reloaded.getCategory()).isEqualTo(NewsCategory.NEWS);
+        assertThat(reloaded.getTitle()).isEqualTo("Official notice");
+        assertThat(reloaded.getPublishedDate()).isEqualTo(LocalDate.of(2026, 9, 29));
+        assertThat(reloaded.getRevealDate()).isNull();
+        assertThat(reloaded.getImageUrl()).isNull();
+        assertThat(reloaded.getProductName()).isNull();
+        assertThat(reloaded.getCreatedAt()).isNotNull();
+    }
 }

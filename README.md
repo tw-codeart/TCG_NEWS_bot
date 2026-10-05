@@ -3,14 +3,14 @@
 A Java portfolio project for aggregating official trading card game news,
 starting with Japanese Weiß Schwarz.
 
-## Current status: Phase 4
+## Current status: Phase 5
 
 The following source code and configuration have been added:
 
 - A Java 17 / Spring Boot 3.5.16 Maven project.
 - A JPA `NewsItem` entity and Spring Data repository.
-- Categories for card reveals, product news, and card list news.
-- Fields for title, product name, reveal date, official image and source URLs,
+- Categories for card reveals, product news, card list news, and general news.
+- Fields for title, product name, reveal date, publication date, official image and source URLs,
   content hash, and an automatically assigned creation timestamp.
 - A local file-based H2 database configuration.
 - A `NewsSource` interface with a source identifier, game, and news-fetch contract.
@@ -26,6 +26,20 @@ The following source code and configuration have been added:
   and source URLs, a metadata SHA-256 hash, and a creation timestamp on persistence.
 - Centralized hash-based duplicate filtering in `NewsIngestionService`, with a
   database uniqueness constraint on `content_hash`.
+- A `WsInformationSource` with a separate HTTP client and local-fixture parser
+  for the first official information-list page.
+- Information entries mapped to `PRODUCT_NEWS`, `CARD_LIST_NEWS`, or `NEWS`,
+  retaining available metadata and leaving unavailable optional fields null.
+
+**Phase 5 verification (2026-10-05):** Maven compilation and all 18 tests passed
+using Java 17 and Maven 3.9.9. The 6 added tests cover information parsing, optional
+fields, malformed entries, source delegation and HTTP errors, and publication-date
+persistence. Parser tests use synthetic local HTML; source tests mock HTTP.
+A separate live check fetched the official information page and saved 30 news
+records into temporary in-memory H2: 18 `PRODUCT_NEWS`, 4 `CARD_LIST_NEWS`, and
+8 `NEWS`. All 30 had publication dates and thumbnail URLs; 20 had product names
+in the recognized title format. Required metadata and `createdAt` were checked
+after persistence. No images were downloaded. This is a point-in-time check.
 
 **Phase 4 verification (2026-10-05):** Maven compilation and all 12 tests passed
 using the same Java 17 / Maven 3.9.9 toolchain. The 7 new tests cover dated reveals,
@@ -55,12 +69,14 @@ The source contract does not depend on WS page structure. Future games can add
 game enum values and source implementations without changing this interface.
 Product discovery is a catalog prerequisite, not a `NewsSource` implementation:
 catalog entries are not product-news announcements. `WsCardRevealSource` is the
-first concrete news source. Fetch orchestration across all sources remains planned.
+first concrete news source; `WsInformationSource` is the second. Fetch orchestration
+across all sources remains planned.
 
-Information-page fetching/parsing, broader news deduplication policies, REST
-endpoints, and notifications are planned. From Spring/Java code, run
+Broader news deduplication policies, REST endpoints, and notifications are planned.
+From Spring/Java code, run
 `WsProductDiscoveryService.discoverProducts()` to populate the catalog, then call
 `NewsIngestionService.fetchAndSave(wsCardRevealSource)` to fetch and save reveals.
+For information news, call `NewsIngestionService.fetchAndSave(wsInformationSource)`.
 Startup and REST fetch triggers are not implemented.
 
 ## Product discovery scope
@@ -108,6 +124,38 @@ while continuing other pages. If every attempted page fails, it throws
 dated reveals are successful empty results. Parsing supports the observed accordion
 and image-list format; other HTML formats and sources have not been implemented.
 
+## Information news scope
+
+The parser follows `ul.news__lists > li.news__item`, `a.news__itemLink`,
+`.news__itemTitle`, `time.news__itemDate`, `.news__itemCatItem`, and
+`.news__itemThumb img`, inspected directly at <https://ws-tcg.com/information/>
+(HTTP 200) on 2026-10-05. Links can lead directly to products, card lists, or other
+official pages. Query parameters are preserved, including card-list expansion IDs.
+Only HTTPS URLs on `ws-tcg.com` are accepted.
+
+The official labels `商品情報` and `カードリスト` select the corresponding
+categories. Other or missing labels produce `NEWS`. Publication dates come from
+the `datetime` attribute, falling back to a valid displayed `yyyy.MM.dd` date.
+Missing or invalid dates and thumbnails remain null. `revealDate` stays null.
+Product names are extracted only from recognized full product-announcement titles
+with a bracketed name; irregular or ambiguous titles leave `productName` null.
+The original news title is retained without translation or inferred card text.
+
+Malformed individual entries are logged and skipped; valid entries continue.
+A missing expected news list raises a parsing error. An empty list, or a list
+containing only invalid individual entries, returns no records. Retrieval and
+page-level parsing failures are logged and wrapped in `NewsSourceException`.
+
+The information content hash uses UTF-8 metadata separated by newlines: game,
+category, source URL, title, publication date, and image URL. Null date/image values
+use empty hash components. The existing ingestion service handles duplicate hashes;
+the parser does not filter duplicates. Different titles or dates at the same
+destination URL can represent separate announcements. Broader identity and update
+policies remain planned for Phase 6.
+
+Only the first list page is fetched. Pagination and linked-page content extraction
+are not implemented. No detail-page requests or image downloads are made by this source.
+
 ## Prerequisites and commands
 
 Install JDK 17 and Maven 3.6.3 or later, and ensure Maven uses JDK 17.
@@ -125,19 +173,18 @@ The H2 configuration uses `./data/tcg-news` relative to the working directory.
 Database files and build output are excluded from Git. The H2 console is disabled.
 Automatic schema updates and the local database credentials are development settings.
 Tests use an embedded database instead of the application's data files.
-`revealDate` represents the date printed by the source; `createdAt` is an instant
-assigned when a record is first persisted. Non-card news can omit image and reveal fields.
-Card reveals currently use metadata hashes and centralized hash duplicate checks.
+`revealDate` represents the card-reveal date; `publishedDate` represents the news
+publication date. `createdAt` is an instant assigned when a record is first persisted.
+Non-card news can omit image and reveal fields.
+Card reveals and information news use metadata hashes and centralized hash duplicate checks.
 Broader policies for other news categories remain planned for Phase 6.
 
 ## Planned / Roadmap
 
-1. Phase 5: Parse product and card list news from
-   <https://ws-tcg.com/information/>.
-2. Phase 6: Extend centralized deduplication policies for other news categories.
-3. Phase 7: Add `GET /api/news`, `POST /api/fetch`, and isolation between sources.
-4. Phase 8: Add `NotificationSender` and `ConsoleNotificationSender`.
-5. Phase 9: Extend parser fixture coverage and news deduplication tests.
+1. Phase 6: Extend centralized deduplication policies for other news categories.
+2. Phase 7: Add `GET /api/news`, `POST /api/fetch`, and isolation between sources.
+3. Phase 8: Add `NotificationSender` and `ConsoleNotificationSender`.
+4. Phase 9: Extend parser fixture coverage and news deduplication tests.
 
 Future extension points: `CardTextExtractor` and `TranslationService` interfaces.
 Chinese translation, QQ / Discord delivery, and Yu-Gi-Oh! OCG / TCG support are
