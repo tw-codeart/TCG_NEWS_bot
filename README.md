@@ -3,7 +3,7 @@
 A Java portfolio project for aggregating official trading card game news,
 starting with Japanese Weiß Schwarz.
 
-## Current status: Phase 7
+## Current status: Phase 8 (message formatter)
 
 The following source code and configuration have been added:
 
@@ -34,6 +34,14 @@ The following source code and configuration have been added:
 - A query service with newest-first ordering and an optional game filter.
 - A fetch service that invokes configured `NewsSource` beans, isolates failures,
   and reports saved, duplicate, and unprocessed item counts.
+- A `NotificationFormatter` interface and a Spring-managed
+  `PlainTextNotificationFormatter` for transport-independent notification text.
+
+**Phase 8 verification (2026-10-05):** Maven compilation and all 40 tests passed
+using Java 17 and Maven 3.9.9. The 5 added pure JUnit tests cover card reveals,
+general news, product/card-list headings, present/absent image links, null/blank
+optional fields, and category-specific dates. They make no network requests and
+do not send messages or use a database.
 
 **Phase 7 verification (2026-10-05):** Maven compilation and all 35 tests passed
 using Java 17 and Maven 3.9.9. Seven new Spring Boot / MockMvc tests cover empty
@@ -103,7 +111,7 @@ Use `POST /api/fetch` to trigger collection manually. The WS card-reveal source
 refreshes its product catalog with the existing discovery service before reading
 stored product URLs. From Spring/Java code, the single-source
 `NewsIngestionService.fetchAndSave(source)` method remains available.
-Startup/scheduled fetches and notifications are not implemented.
+Startup/scheduled fetches and notification sending are not implemented.
 
 ## Product discovery scope
 
@@ -271,6 +279,42 @@ the API reports source-level failures, not every skipped page or parser entry.
 Concurrency limitations from Phase 6 still apply. Authentication, background jobs,
 and frontend interfaces are not implemented.
 
+## Notification message formatting
+
+`NotificationFormatter.format(NewsItem)` returns plain text. The default
+`PlainTextNotificationFormatter` uses the existing game/category enums for its
+heading. Card reveals use `revealDate`; other news uses `publishedDate`. A missing
+date is omitted rather than inferred from another date, a timestamp, or today's date.
+Missing or blank product names, titles, and image URLs are also omitted, including
+their labels. Available titles are retained without translation or invented card text.
+
+The official source URL is always included, as required by `NewsItem`. Optional
+image URLs are printed as links only; no images are fetched or modified. Formatting
+has no HTTP, persistence, controller, or messaging side effects. Future senders
+can consume the returned `String`; `NotificationSender` and
+`ConsoleNotificationSender` remain planned. The formatter is not called
+automatically by the fetch API, and no notification endpoint has been added.
+
+Synthetic card-reveal example from the unit test (not an actual official announcement):
+
+```text
+[Weiß Schwarz Card Reveal]
+
+Product: Test product
+Reveal date: 2026-09-29
+Title: Official reveal notice
+
+Official source:
+https://ws-tcg.com/products/test/
+
+Image:
+https://ws-tcg.com/cards/test.png
+```
+
+General, product, and card-list news use `News`, `Product News`, and `Card List News`
+headings respectively, with `Published date` when available. Labels are fixed
+English text; localization and templates are not implemented.
+
 ## Prerequisites and commands
 
 Install JDK 17 and Maven 3.6.3 or later, and ensure Maven uses JDK 17.
@@ -296,8 +340,8 @@ checks described above.
 
 ## Planned / Roadmap
 
-1. Phase 8: Add `NotificationSender` and `ConsoleNotificationSender`.
-2. Phase 9: Extend parser fixture coverage and news deduplication tests.
+- Planned: Add `NotificationSender` and `ConsoleNotificationSender`.
+- Phase 9: Extend parser fixture coverage and news deduplication tests.
 
 Future extension points: `CardTextExtractor` and `TranslationService` interfaces.
 Chinese translation, QQ / Discord delivery, and Yu-Gi-Oh! OCG / TCG support are
