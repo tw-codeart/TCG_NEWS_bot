@@ -8,31 +8,30 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 @Service
 public class NewsIngestionService {
 
     private static final Logger log = LoggerFactory.getLogger(NewsIngestionService.class);
     private final NewsItemRepository repository;
+    private final NewsDeduplicationPolicy deduplicationPolicy;
 
-    public NewsIngestionService(NewsItemRepository repository) {
+    public NewsIngestionService(NewsItemRepository repository, NewsDeduplicationPolicy deduplicationPolicy) {
         this.repository = repository;
+        this.deduplicationPolicy = deduplicationPolicy;
     }
 
     /**
-     * Fetches one source and returns newly saved records. Duplicate policy is kept
-     * here, outside parsers. This method does not wrap the batch in a transaction.
+     * Fetches one source and returns newly saved records. All identity checks use
+     * the shared policy, outside parsers. This method does not wrap the batch in a transaction.
      */
     public List<NewsItem> fetchAndSave(NewsSource source) throws NewsSourceException {
         List<NewsItem> fetched = source.fetchNews();
         List<NewsItem> saved = new ArrayList<>();
-        Set<String> seenHashes = new HashSet<>();
         for (NewsItem item : fetched) {
             String hash = item.getContentHash();
-            if (!seenHashes.add(hash) || repository.existsByContentHash(hash)) {
+            if (deduplicationPolicy.isDuplicate(item)) {
                 log.debug("Skipping duplicate news: source={}, contentHash={}", source.getSourceId(), hash);
                 continue;
             }
@@ -40,7 +39,7 @@ public class NewsIngestionService {
                 saved.add(repository.saveAndFlush(item));
             } catch (DataIntegrityViolationException exception) {
                 // A concurrent fetch may have saved the same hash after the lookup.
-                if (repository.existsByContentHash(hash)) {
+                if (deduplicationPolicy.isDuplicate(item)) {
                     log.debug("Skipping concurrently saved news: source={}, contentHash={}",
                             source.getSourceId(), hash);
                 } else {

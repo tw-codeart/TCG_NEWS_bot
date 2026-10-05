@@ -3,7 +3,7 @@
 A Java portfolio project for aggregating official trading card game news,
 starting with Japanese Weiß Schwarz.
 
-## Current status: Phase 5
+## Current status: Phase 6
 
 The following source code and configuration have been added:
 
@@ -24,12 +24,22 @@ The following source code and configuration have been added:
 - A separate product-page HTTP client and a fixture-testable card-reveal parser.
 - Individual `CARD_REVEAL` records with product name, reveal date, official image
   and source URLs, a metadata SHA-256 hash, and a creation timestamp on persistence.
-- Centralized hash-based duplicate filtering in `NewsIngestionService`, with a
-  database uniqueness constraint on `content_hash`.
+- Centralized exact duplicate checks in `NewsDeduplicationPolicy`, called by
+  `NewsIngestionService`, with a database uniqueness constraint on `content_hash`.
 - A `WsInformationSource` with a separate HTTP client and local-fixture parser
   for the first official information-list page.
 - Information entries mapped to `PRODUCT_NEWS`, `CARD_LIST_NEWS`, or `NEWS`,
   retaining available metadata and leaving unavailable optional fields null.
+
+**Phase 6 verification (2026-10-05):** Maven compilation and all 25 tests passed
+using Java 17 and Maven 3.9.9. The 7 added in-memory H2 tests cover matching source
+announcements despite changed thumbnails/hashes, matching card images/dates across
+different pages, exact hashes, a freshly parsed repeated information fetch, similar
+titles with shared URLs/dates/banners, different dates for the same card image,
+and missing publication dates. The existing fixture test also confirms distinct
+same-day card images are saved separately and repeated card fetches save nothing.
+The information fixture saved 6 records on its first fetch and 0 on its second.
+No live HTTP or image requests were made for Phase 6 validation.
 
 **Phase 5 verification (2026-10-05):** Maven compilation and all 18 tests passed
 using Java 17 and Maven 3.9.9. The 6 added tests cover information parsing, optional
@@ -72,7 +82,7 @@ catalog entries are not product-news announcements. `WsCardRevealSource` is the
 first concrete news source; `WsInformationSource` is the second. Fetch orchestration
 across all sources remains planned.
 
-Broader news deduplication policies, REST endpoints, and notifications are planned.
+REST endpoints and notifications are planned.
 From Spring/Java code, run
 `WsProductDiscoveryService.discoverProducts()` to populate the catalog, then call
 `NewsIngestionService.fetchAndSave(wsCardRevealSource)` to fetch and save reveals.
@@ -148,13 +158,47 @@ page-level parsing failures are logged and wrapped in `NewsSourceException`.
 
 The information content hash uses UTF-8 metadata separated by newlines: game,
 category, source URL, title, publication date, and image URL. Null date/image values
-use empty hash components. The existing ingestion service handles duplicate hashes;
+use empty hash components. The ingestion service delegates duplicate checks to the shared policy;
 the parser does not filter duplicates. Different titles or dates at the same
-destination URL can represent separate announcements. Broader identity and update
-policies remain planned for Phase 6.
+destination URL can represent separate announcements; the exact identity rules
+below preserve them.
 
 Only the first list page is fetched. Pagination and linked-page content extraction
 are not implemented. No detail-page requests or image downloads are made by this source.
+
+## News deduplication scope
+
+`NewsDeduplicationPolicy` checks persisted records in this order:
+
+1. An exact `contentHash` match is a duplicate for any category.
+2. For card reveals, the same game, category, reveal date, and non-empty image URL
+   identify the same reveal, even if its source page or metadata hash changes.
+   A different image on the same day, or the same image on another date, stays separate.
+   If the date or image is missing, only the hash rule applies.
+3. For other news, the same game, category, source URL, publication date, and
+   complete non-empty title identify an announcement. Thumbnail changes do not
+   create another record. Missing publication dates match other missing dates.
+
+Source URLs alone are not globally unique: several announcements can point to
+one product, card-list, or rules page. News thumbnails can be reused banners.
+Neither shared URLs, shared news thumbnails, dates, product names, nor similar
+titles alone cause a merge. Exact titles are used only with the news URL/date
+context; no title similarity matching is performed.
+
+The service calls `saveAndFlush` before checking the next item. Subsequent items
+in the same batch and later fetches can therefore find the saved record. Sources
+and parsers do not perform duplicate checks. The shared policy uses model fields,
+not WS selectors or individual source IDs, so future matching rules can be added
+there without changing source implementations. No fuzzy matching, RSSHub, or X
+integration is implemented.
+
+Comparisons use the stored URL strings exactly; URL aliases, rewritten image URLs,
+and semantically equivalent announcements are not matched. An edited news title
+or date can remain a separate announcement. Existing duplicate rows are not
+automatically cleaned up, and incoming metadata does not update a matched row.
+The database enforces unique hashes only. Concurrent fetches with different hashes
+but the same composite identity can still race; composite database constraints or
+coordination are not implemented. No schema change is required in this phase.
 
 ## Prerequisites and commands
 
@@ -176,15 +220,14 @@ Tests use an embedded database instead of the application's data files.
 `revealDate` represents the card-reveal date; `publishedDate` represents the news
 publication date. `createdAt` is an instant assigned when a record is first persisted.
 Non-card news can omit image and reveal fields.
-Card reveals and information news use metadata hashes and centralized hash duplicate checks.
-Broader policies for other news categories remain planned for Phase 6.
+Card reveals and information news use metadata hashes and the centralized identity
+checks described above.
 
 ## Planned / Roadmap
 
-1. Phase 6: Extend centralized deduplication policies for other news categories.
-2. Phase 7: Add `GET /api/news`, `POST /api/fetch`, and isolation between sources.
-3. Phase 8: Add `NotificationSender` and `ConsoleNotificationSender`.
-4. Phase 9: Extend parser fixture coverage and news deduplication tests.
+1. Phase 7: Add `GET /api/news`, `POST /api/fetch`, and isolation between sources.
+2. Phase 8: Add `NotificationSender` and `ConsoleNotificationSender`.
+3. Phase 9: Extend parser fixture coverage and news deduplication tests.
 
 Future extension points: `CardTextExtractor` and `TranslationService` interfaces.
 Chinese translation, QQ / Discord delivery, and Yu-Gi-Oh! OCG / TCG support are
