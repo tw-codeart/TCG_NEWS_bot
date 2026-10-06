@@ -47,7 +47,8 @@ class NotificationPipelineTest {
     void notifiesANewItemAfterSavingAndSendsNothingForTheRepeatedFetch() throws Exception {
         NewsSource source = source();
         when(source.fetchNews()).thenAnswer(call -> List.of(news(0)));
-        NewsFetchService fetch = new NewsFetchService(List.of(source), ingestion, notifications);
+        NewsFetchService fetch = new NewsFetchService(List.of(source), ingestion, notifications,
+                mock(org.springframework.beans.factory.ObjectProvider.class));
 
         assertThat(fetch.fetchAll().saved()).isEqualTo(1);
         NewsItem stored = repository.findAll().get(0);
@@ -115,7 +116,8 @@ class NotificationPipelineTest {
     }
 
     private NewsFetchSummary fetch(NewsSource source) {
-        return new NewsFetchService(List.of(source), ingestion, notifications).fetchAll();
+        return new NewsFetchService(List.of(source), ingestion, notifications,
+                mock(org.springframework.beans.factory.ObjectProvider.class)).fetchAll();
     }
 
     private NewsSource source() {

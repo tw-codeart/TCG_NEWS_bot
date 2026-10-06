@@ -21,13 +21,24 @@ public class NewsNotificationService {
 
     /** Called with the current fetch's successfully saved records, after persistence. */
     public void notifyNewItems(List<NewsItem> savedItems) {
+        notifyNewItems(savedItems, sender);
+    }
+
+    public DeliveryResult notifyNewItems(List<NewsItem> savedItems, NotificationSender destination) {
+        int sent = 0;
+        int failed = 0;
         for (NewsItem item : savedItems) {
             try {
-                sender.send(formatter.format(item));
+                destination.send(formatter.format(item));
+                sent++;
             } catch (RuntimeException exception) {
+                failed++;
                 log.error("Notification failed for saved news: id={}, sourceUrl={}",
                         item.getId(), item.getSourceUrl(), exception);
             }
         }
+        return new DeliveryResult(sent, failed);
     }
+
+    public record DeliveryResult(int sent, int failed) { }
 }

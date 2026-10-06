@@ -13,6 +13,18 @@ class RssHubConfigurationTest {
                     WsRssHubFeedParser.class, WsRssHubNewsSource.class);
 
     @Test
+    void rejectsNotificationBatchLimitsOutsideOneToFive() {
+        for (int limit : new int[] {0, 6, 100}) {
+            context.withPropertyValues("rsshub.enabled=true", "rsshub.base-url=https://rsshub.example",
+                    "rsshub.notification-batch-limit=" + limit).run(app -> {
+                assertThat(app).hasFailed();
+                assertThat(app.getStartupFailure()).hasRootCauseMessage(
+                        "rsshub.notification-batch-limit must be between 1 and 5");
+            });
+        }
+    }
+
+    @Test
     void isDisabledByDefaultAndDoesNotRequireAnEndpoint() {
         context.run(app -> {
             assertThat(app).hasNotFailed().doesNotHaveBean(WsRssHubNewsSource.class)

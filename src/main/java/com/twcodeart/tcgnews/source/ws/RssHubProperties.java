@@ -13,6 +13,18 @@ public class RssHubProperties {
 
     private String baseUrl;
     private String wsRoute = "/twitter/user/wstcg";
+    private int notificationBatchLimit = 3;
+
+    public int getNotificationBatchLimit() {
+        return notificationBatchLimit;
+    }
+
+    public void setNotificationBatchLimit(int notificationBatchLimit) {
+        if (notificationBatchLimit < 1 || notificationBatchLimit > 5) {
+            throw new IllegalArgumentException("rsshub.notification-batch-limit must be between 1 and 5");
+        }
+        this.notificationBatchLimit = notificationBatchLimit;
+    }
 
     public String getBaseUrl() {
         return baseUrl;

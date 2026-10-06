@@ -3,7 +3,7 @@
 A Java portfolio project for aggregating official trading card game news,
 starting with Japanese Weiß Schwarz.
 
-## Current status: WS collection, console notifications, and optional QQ smoke testing
+## Current status: WS collection and bounded RSSHub-to-QQ notifications
 
 The following source code and configuration have been added:
 
@@ -42,6 +42,19 @@ The following source code and configuration have been added:
   `NewsNotificationService` connected to newly saved records from the manual fetch.
 - An optional `QqNotificationSender` and bounded manual endpoints for a single
   configured QQ test group through a OneBot v11 / NapCat-compatible HTTP API.
+- RSSHub records routed from the shared ingestion result to QQ, with a persistent
+  first-history baseline marker and a configurable limit of 1–5 notifications.
+
+**RSSHub-to-QQ verification (2026-10-06):** `mvn test` and `mvn package` both
+passed all 90 tests with no failures, errors, or skipped tests. Ten added tests
+cover a history baseline with no sends, a recreated notifier reading persisted
+bootstrap state, new/duplicate records, distinct images with default/maximum
+limits, failed QQ sends retaining committed rows, RSSHub/website isolation,
+empty/partial first batches, disabled QQ, bootstrap storage failure, and invalid
+limits. Local RSS fixtures, mocked clients/senders, and temporary in-memory H2
+are used; no real posts or group credentials are in the fixtures.
+The user confirmed live QQ smoke-test success separately. This integration phase
+did not verify a live RSSHub feed or send a real RSSHub post to QQ.
 
 **QQ smoke verification (2026-10-06):** Both `mvn test` and `mvn package` passed
 with 80 tests, no failures, errors, or skipped tests, using Java 17 / Maven 3.9.9.
@@ -147,9 +160,10 @@ Use `POST /api/fetch` to trigger collection manually. The WS card-reveal source
 refreshes its product catalog with the existing discovery service before reading
 stored product URLs. From Spring/Java code, the single-source
 `NewsIngestionService.fetchAndSave(source)` method remains available.
-Manual fetches format and log newly saved news through the console sender.
-Startup/scheduled fetches and automatic external messaging are not implemented.
-The separate QQ smoke endpoints described below operate only when enabled.
+Manual fetches notify newly saved website news through the console sender.
+Enabled RSSHub records use the guarded QQ path described below when QQ is also
+enabled. Startup/scheduled fetches are not implemented. The separate manual QQ
+smoke endpoints remain available when enabled.
 
 ## Product discovery scope
 
@@ -244,6 +258,7 @@ rsshub:
   enabled: false
   base-url: ""
   ws-route: /twitter/user/wstcg
+  notification-batch-limit: 3
 ```
 
 To enable it, set `RSSHUB_ENABLED=true` and `RSSHUB_BASE_URL` to the base URL of
@@ -300,6 +315,55 @@ or cross-source card identity is not implemented.
 The route `/twitter/user/wstcg` is an example, not a verified availability claim.
 Feed freshness, media completeness, route support, and X access depend on the
 external RSSHub instance. **Live RSSHub feed was not verified.**
+
+## RSSHub-to-QQ notification scope
+
+`POST /api/fetch` still uses `NewsIngestionService` and the centralized exact
+deduplication policy for every source. For the WS RSSHub source, its result's
+`savedItems()` is passed to `RssHubQqNotificationService`; existing rows and
+duplicates are never selected for automatic sending. The same
+`NewsNotificationService` formats each selected item with `NotificationFormatter`
+and passes the returned string to the existing `QqNotificationSender`.
+No parser, formatting, or deduplication logic is duplicated in the sender.
+
+The first successfully persisted nonempty RSSHub batch is a history baseline:
+all new records are saved, but zero QQ messages are attempted. Completion is
+stored under the stable source ID in `source_notification_bootstraps`, so a
+recreated notifier or subsequent process start uses the same database marker.
+This marker is source initialization state, not per-message delivery status.
+An empty feed or partially failed ingestion does not complete initialization.
+If checking or saving the marker fails, messages are suppressed and the failure
+is logged. A batch of existing duplicates can complete initialization as well.
+This deliberately suppresses all entries in the first snapshot, including any
+recent posts in it; no date-based guess is made about what counts as history.
+
+Subsequent manual fetches attempt at most `rsshub.notification-batch-limit`
+newly saved RSSHub records, default 3. `RSSHUB_NOTIFICATION_BATCH_LIMIT` overrides
+it; values outside 1–5 reject startup configuration. The cap counts attempted
+messages, including failed attempts, and uses the parser's existing item order.
+Different images from one post count separately. Extra records stay saved but
+are **skipped**, not queued/deferred: later fetches identify them as duplicates
+and do not resend them. Records saved while QQ is disabled are also not replayed.
+
+Logs report `bootstrapSkipped`, or normal-batch `saved`, `attempted`, `sent`,
+`failed`, and `limitSkipped` counts. The REST fetch summary retains its existing
+collection/persistence fields; callers must inspect logs for notification results.
+QQ failures do not undo committed news, and later messages within the attempt
+cap continue. RSSHub retrieval failures remain isolated from website sources.
+Original text, publication metadata, source URL, and individual image URLs are
+preserved by the existing parser. QQ contains the original X URL and image links
+from the formatter; image bytes and SAMPLE/watermarks are not modified.
+
+Enable `RSSHUB_ENABLED`, configure `RSSHUB_BASE_URL`, and enable/configure QQ as
+documented below, then restart the Java application and use `POST /api/fetch`.
+The first nonempty fetch initializes history; later newly discovered records can
+be notified. Deleting the marker resets history initialization. Deleting news
+while retaining the marker can make old feed entries newly saved again, subject
+to the cap. Concurrent fetches and file-database schema upgrades have not been
+separately verified. No scheduler, retries, delivery queue, fuzzy deduplication,
+OCR, translation, or additional game is introduced.
+
+**Live RSSHub feed was not verified. No real RSSHub item reaching QQ was verified.**
 
 ## News deduplication scope
 
@@ -423,8 +487,9 @@ do not undo saved news or alter the API's fetch/save statistics. The API summary
 does not report notification delivery status. Delivery is synchronous and best
 effort: there is no retry, durable queue, delivery tracking, or replay on repeated
 fetches. A process interruption between saving and sending can lose a message.
-The fetch pipeline continues to use the console sender, including when QQ smoke
-testing is enabled. The separate QQ endpoints below do not call this fetch flow.
+The website fetch pipeline continues to use the console sender. Enabled RSSHub
+items use the separate guarded QQ path above. The manual QQ endpoints below do
+not call this fetch flow.
 
 ## Optional QQ notification smoke test
 
@@ -466,8 +531,8 @@ curl -X POST "http://localhost:8080/api/notifications/news?limit=5"
 These endpoints only read existing news; they do not scrape, create news, or alter
 deduplication. They intentionally allow manual resending of stored records. The
 maximum is per invocation, not a global rate limit. Group selection comes only
-from `qq.test-group-id`. The console sender remains the primary sender for the
-automated newly-saved-record pipeline; enabling QQ does not redirect fetch output.
+from `qq.test-group-id`. The console sender remains the primary default sender;
+only the configured RSSHub source has the guarded QQ routing described above.
 
 The sender posts to `/send_group_msg` with a numeric `group_id` and one `text`
 message segment. Japanese text, newlines, URLs, and literal CQ-looking text are
@@ -494,8 +559,10 @@ logs use safe categories. The client has a 3-second connection timeout and a
 
 `imageUrl` remains a text link supplied by the existing formatter. Image message
 segments, downloads, scheduling, multi-group delivery, retries, persistent delivery
-status, OCR, and translation are not implemented. **Live QQ sending was not
-verified.** No claim is made that text, URLs, or images reached a real group.
+status, OCR, and translation are not implemented. At implementation time, QQ
+sending was verified only with mocks; the user subsequently confirmed successful
+live QQ smoke testing. Live RSSHub-to-QQ sending and image attachment delivery
+remain unverified.
 
 Synthetic card-reveal example from the unit test (not an actual official announcement):
 
@@ -546,9 +613,9 @@ checks described above.
 - Phase 9: Extend parser fixture coverage and news deduplication tests.
 
 Future extension points: `CardTextExtractor` and `TranslationService` interfaces.
-Chinese translation, automatic QQ / Discord delivery, and Yu-Gi-Oh! OCG / TCG support
-are future work and are not implemented. Manual QQ text smoke testing is available
-only as described above. No OCR, paid APIs, direct X/Twitter APIs, or
+Chinese translation, scheduled QQ delivery, Discord delivery, and Yu-Gi-Oh! OCG / TCG
+support are future work. Manual QQ smoke tests and RSSHub notifications during
+manual fetches are available as described above. No OCR, paid APIs, direct X/Twitter APIs, or
 frontend framework are included.
 
 ## Images and attribution

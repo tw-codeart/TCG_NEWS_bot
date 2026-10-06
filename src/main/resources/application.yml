@@ -21,6 +21,7 @@ rsshub:
   enabled: ${RSSHUB_ENABLED:false}
   base-url: ${RSSHUB_BASE_URL:}
   ws-route: ${RSSHUB_WS_ROUTE:/twitter/user/wstcg}
+  notification-batch-limit: ${RSSHUB_NOTIFICATION_BATCH_LIMIT:3}
 
 logging:
   charset:

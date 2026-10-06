@@ -17,6 +17,8 @@ import java.util.List;
 @ConditionalOnProperty(prefix = "rsshub", name = "enabled", havingValue = "true")
 public class WsRssHubNewsSource implements NewsSource {
 
+    public static final String SOURCE_ID = "ws-jp-rsshub-card-reveals";
+
     private static final Logger log = LoggerFactory.getLogger(WsRssHubNewsSource.class);
     private final WsRssHubFeedClient client;
     private final WsRssHubFeedParser parser;
@@ -28,7 +30,7 @@ public class WsRssHubNewsSource implements NewsSource {
 
     @Override
     public String getSourceId() {
-        return "ws-jp-rsshub-card-reveals";
+        return SOURCE_ID;
     }
 
     @Override

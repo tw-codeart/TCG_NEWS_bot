@@ -34,7 +34,8 @@ class NewsFetchServiceTest {
         when(formatter.format(first)).thenReturn("First saved message");
         when(formatter.format(second)).thenReturn("Second saved message");
         var notifications = new NewsNotificationService(formatter, sender);
-        var summary = new NewsFetchService(List.of(failed, valid), ingestion, notifications).fetchAll();
+        var summary = new NewsFetchService(List.of(failed, valid), ingestion, notifications,
+                mock(org.springframework.beans.factory.ObjectProvider.class)).fetchAll();
         assertThat(summary.fetched()).isEqualTo(4);
         assertThat(summary.saved()).isEqualTo(2);
         assertThat(summary.duplicates()).isZero();

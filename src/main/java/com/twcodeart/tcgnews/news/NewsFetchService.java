@@ -1,6 +1,8 @@
 package com.twcodeart.tcgnews.news;
 
 import com.twcodeart.tcgnews.notification.NewsNotificationService;
+import com.twcodeart.tcgnews.notification.RssHubQqNotificationService;
+import org.springframework.beans.factory.ObjectProvider;
 import com.twcodeart.tcgnews.source.NewsSource;
 import com.twcodeart.tcgnews.source.NewsSourceException;
 import org.slf4j.Logger;
@@ -17,12 +19,15 @@ public class NewsFetchService {
     private final List<NewsSource> sources;
     private final NewsIngestionService ingestion;
     private final NewsNotificationService notifications;
+    private final ObjectProvider<RssHubQqNotificationService> rssHubNotifications;
 
     public NewsFetchService(List<NewsSource> sources, NewsIngestionService ingestion,
-                            NewsNotificationService notifications) {
+                            NewsNotificationService notifications,
+                            ObjectProvider<RssHubQqNotificationService> rssHubNotifications) {
         this.sources = List.copyOf(sources);
         this.ingestion = ingestion;
         this.notifications = notifications;
+        this.rssHubNotifications = rssHubNotifications;
     }
 
     public NewsFetchSummary fetchAll() {
@@ -34,8 +39,10 @@ public class NewsFetchService {
         List<NewsFetchSummary.SourceError> errors = new ArrayList<>();
         for (NewsSource source : sources) {
             NewsIngestionService.IngestionResult result;
+            boolean ingestionCompleted = false;
             try {
                 result = ingestion.fetchAndSaveWithSummary(source);
+                ingestionCompleted = true;
                 successfulSources++;
             } catch (NewsIngestionService.IngestionFailure exception) {
                 // Earlier saves have committed; retain their counts rather than
@@ -53,7 +60,12 @@ public class NewsFetchService {
             duplicates += result.duplicates();
             unprocessed += result.unprocessed();
             // Persisted records are available even when the source's batch saved only partially.
-            notifications.notifyNewItems(result.savedItems());
+            var rssHub = rssHubNotifications.getIfAvailable();
+            if (rssHub != null && rssHub.handles(source.getSourceId())) {
+                rssHub.notifySavedItems(result, ingestionCompleted);
+            } else {
+                notifications.notifyNewItems(result.savedItems());
+            }
         }
         return new NewsFetchSummary(fetched, saved, duplicates, unprocessed, successfulSources, errors);
     }
