@@ -3,7 +3,7 @@
 A Java portfolio project for aggregating official trading card game news,
 starting with Japanese Weiß Schwarz.
 
-## Current status: Phase 8 plus optional RSSHub source
+## Current status: Phase 8, optional RSSHub source, and console notifications
 
 The following source code and configuration have been added:
 
@@ -38,6 +38,19 @@ The following source code and configuration have been added:
   `PlainTextNotificationFormatter` for transport-independent notification text.
 - An optional, disabled-by-default `WsRssHubNewsSource` for official `@wstcg`
   posts mentioning `今日のカード`, with separate HTTP retrieval and RSS/Atom parsing.
+- A `NotificationSender` interface, `ConsoleNotificationSender`, and
+  `NewsNotificationService` connected to newly saved records from the manual fetch.
+
+**Notification pipeline verification (2026-10-06):** Both `mvn test` and
+`mvn package` passed with 63 tests, no failures, errors, or skipped tests, using
+Java 17 / Maven 3.9.9. Six added tests cover sender output, formatter reuse and
+failure isolation, newly saved records, repeated/empty fetches, and exactly three
+notifications for twenty fetched items with seventeen duplicates. The persistence
+tests use in-memory H2 without a surrounding test transaction and confirm that
+sender failure leaves committed records intact. The existing partial-persistence
+test also verifies notification of the successfully saved subset and continuation
+to another source. API tests exercise the default console sender with local
+fixtures; no live website, RSSHub, or external messaging requests were made.
 
 **RSSHub verification (2026-10-05):** `mvn package` compiled the project, ran all
 57 tests with no failures, errors, or skipped tests, and built the Spring Boot JAR
@@ -123,7 +136,8 @@ Use `POST /api/fetch` to trigger collection manually. The WS card-reveal source
 refreshes its product catalog with the existing discovery service before reading
 stored product URLs. From Spring/Java code, the single-source
 `NewsIngestionService.fetchAndSave(source)` method remains available.
-Startup/scheduled fetches and notification sending are not implemented.
+Manual fetches format and log newly saved news through the console sender.
+Startup/scheduled fetches and external messaging are not implemented.
 
 ## Product discovery scope
 
@@ -376,10 +390,28 @@ their labels. Available titles are retained without translation or invented card
 
 The official source URL is always included, as required by `NewsItem`. Optional
 image URLs are printed as links only; no images are fetched or modified. Formatting
-has no HTTP, persistence, controller, or messaging side effects. Future senders
-can consume the returned `String`; `NotificationSender` and
-`ConsoleNotificationSender` remain planned. The formatter is not called
-automatically by the fetch API, and no notification endpoint has been added.
+has no HTTP, persistence, controller, or messaging side effects.
+`NotificationSender.send(String)` consumes the already formatted message.
+`ConsoleNotificationSender` writes it through SLF4J at INFO level, which appears
+in the console with the default logging configuration. It contains no formatting
+rules and makes no image or messaging-platform requests.
+Console logging explicitly uses UTF-8 to preserve multilingual notification text.
+
+`NewsFetchService.fetchAll()` (used by `POST /api/fetch`) passes each source's
+`IngestionResult.savedItems()` directly to `NewsNotificationService`. It never
+queries the latest rows to decide what to notify. Duplicates and empty results
+produce no messages. Successfully saved rows from a partially failed ingestion
+batch are also notified, while the existing persistence error is still reported.
+The lower-level ingestion helpers remain persistence-only.
+
+Notification processing happens after persistence, without a surrounding batch
+transaction. Formatting or sending failures are logged per record with its ID,
+source URL, and cause; processing continues with later records. These failures
+do not undo saved news or alter the API's fetch/save statistics. The API summary
+does not report notification delivery status. Delivery is synchronous and best
+effort: there is no retry, durable queue, delivery tracking, or replay on repeated
+fetches. A process interruption between saving and sending can lose a message.
+No separate notification endpoint has been added.
 
 Synthetic card-reveal example from the unit test (not an actual official announcement):
 
@@ -427,7 +459,6 @@ checks described above.
 
 ## Planned / Roadmap
 
-- Planned: Add `NotificationSender` and `ConsoleNotificationSender`.
 - Phase 9: Extend parser fixture coverage and news deduplication tests.
 
 Future extension points: `CardTextExtractor` and `TranslationService` interfaces.

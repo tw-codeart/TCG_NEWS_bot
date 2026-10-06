@@ -1,5 +1,8 @@
 package com.twcodeart.tcgnews.news;
 
+import com.twcodeart.tcgnews.notification.NewsNotificationService;
+import com.twcodeart.tcgnews.notification.NotificationFormatter;
+import com.twcodeart.tcgnews.notification.NotificationSender;
 import com.twcodeart.tcgnews.source.NewsSource;
 import org.junit.jupiter.api.Test;
 
@@ -26,7 +29,12 @@ class NewsFetchServiceTest {
         when(ingestion.fetchAndSaveWithSummary(valid)).thenReturn(
                 new NewsIngestionService.IngestionResult(1, List.of(second), 0));
 
-        var summary = new NewsFetchService(List.of(failed, valid), ingestion).fetchAll();
+        NotificationFormatter formatter = mock(NotificationFormatter.class);
+        NotificationSender sender = mock(NotificationSender.class);
+        when(formatter.format(first)).thenReturn("First saved message");
+        when(formatter.format(second)).thenReturn("Second saved message");
+        var notifications = new NewsNotificationService(formatter, sender);
+        var summary = new NewsFetchService(List.of(failed, valid), ingestion, notifications).fetchAll();
         assertThat(summary.fetched()).isEqualTo(4);
         assertThat(summary.saved()).isEqualTo(2);
         assertThat(summary.duplicates()).isZero();
@@ -35,6 +43,8 @@ class NewsFetchServiceTest {
         assertThat(summary.allSourcesFailed()).isFalse();
         assertThat(summary.errors()).containsExactly(new NewsFetchSummary.SourceError("failed", "News persistence failed"));
         verify(ingestion).fetchAndSaveWithSummary(valid);
+        verify(sender).send("First saved message");
+        verify(sender).send("Second saved message");
     }
 
     private NewsItem news(String title, String hash) {
