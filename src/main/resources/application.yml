@@ -25,3 +25,9 @@ rsshub:
 logging:
   charset:
     console: UTF-8
+
+qq:
+  enabled: ${QQ_ENABLED:false}
+  api-base-url: ${QQ_API_BASE_URL:http://localhost:3000}
+  test-group-id: ${QQ_TEST_GROUP_ID:}
+  access-token: ${QQ_ACCESS_TOKEN:}

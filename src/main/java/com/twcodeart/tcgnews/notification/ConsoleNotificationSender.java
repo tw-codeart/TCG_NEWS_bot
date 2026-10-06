@@ -2,9 +2,11 @@ package com.twcodeart.tcgnews.notification;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
 @Component
+@Primary
 public class ConsoleNotificationSender implements NotificationSender {
 
     private static final Logger log = LoggerFactory.getLogger(ConsoleNotificationSender.class);

@@ -3,7 +3,7 @@
 A Java portfolio project for aggregating official trading card game news,
 starting with Japanese Weiß Schwarz.
 
-## Current status: Phase 8, optional RSSHub source, and console notifications
+## Current status: WS collection, console notifications, and optional QQ smoke testing
 
 The following source code and configuration have been added:
 
@@ -40,6 +40,17 @@ The following source code and configuration have been added:
   posts mentioning `今日のカード`, with separate HTTP retrieval and RSS/Atom parsing.
 - A `NotificationSender` interface, `ConsoleNotificationSender`, and
   `NewsNotificationService` connected to newly saved records from the manual fetch.
+- An optional `QqNotificationSender` and bounded manual endpoints for a single
+  configured QQ test group through a OneBot v11 / NapCat-compatible HTTP API.
+
+**QQ smoke verification (2026-10-06):** Both `mvn test` and `mvn package` passed
+with 80 tests, no failures, errors, or skipped tests, using Java 17 / Maven 3.9.9.
+The 17 added tests use mocked HTTP, MockMvc, and temporary in-memory H2. They cover
+disabled/missing configuration, the configured group, Japanese text and URL
+preservation, plain text segments, default/maximum limits, no scraping, malformed
+or unsuccessful responses, non-2xx HTTP, unavailable APIs, timeouts, and partial
+send counts. No real QQ credentials/group were configured, and no live QQ send
+was performed. Actual group receipt and image attachment sending are unverified.
 
 **Notification pipeline verification (2026-10-06):** Both `mvn test` and
 `mvn package` passed with 63 tests, no failures, errors, or skipped tests, using
@@ -137,7 +148,8 @@ refreshes its product catalog with the existing discovery service before reading
 stored product URLs. From Spring/Java code, the single-source
 `NewsIngestionService.fetchAndSave(source)` method remains available.
 Manual fetches format and log newly saved news through the console sender.
-Startup/scheduled fetches and external messaging are not implemented.
+Startup/scheduled fetches and automatic external messaging are not implemented.
+The separate QQ smoke endpoints described below operate only when enabled.
 
 ## Product discovery scope
 
@@ -411,7 +423,79 @@ do not undo saved news or alter the API's fetch/save statistics. The API summary
 does not report notification delivery status. Delivery is synchronous and best
 effort: there is no retry, durable queue, delivery tracking, or replay on repeated
 fetches. A process interruption between saving and sending can lose a message.
-No separate notification endpoint has been added.
+The fetch pipeline continues to use the console sender, including when QQ smoke
+testing is enabled. The separate QQ endpoints below do not call this fetch flow.
+
+## Optional QQ notification smoke test
+
+QQ is disabled by default. The application only calls an externally configured
+OneBot v11 / NapCat HTTP server; it does not log in to QQ, deploy NapCat, or manage
+accounts. No new Maven dependency is added: Spring's existing `RestClient` and
+Jackson handle HTTP and JSON.
+
+```yaml
+qq:
+  enabled: false
+  api-base-url: http://localhost:3000
+  test-group-id: ""
+  access-token: ""
+```
+
+Set `QQ_ENABLED=true`, `QQ_API_BASE_URL`, and `QQ_TEST_GROUP_ID` in your local
+environment. `QQ_ACCESS_TOKEN` supplies the optional API bearer token if your
+OneBot server requires it. Use the OneBot HTTP server address, not NapCat's WebUI
+address. Keep actual group IDs and tokens outside tracked files. Disabled or
+missing/invalid configuration returns HTTP 503 before querying or sending.
+
+Manual endpoints accept no body and no group ID, message, token, or URL override:
+
+- `POST /api/notifications/test` sends one fixed smoke message containing
+  Japanese text and the official website URL.
+- `POST /api/notifications/news` selects at most the newest 3 stored rows by
+  `createdAt` and `id`, reuses `NotificationFormatter`, and sends their text.
+- `POST /api/notifications/news?limit=5` changes that limit. Only integers from
+  1 through 5 are accepted; invalid limits or extra parameters return HTTP 400
+  without sending. An empty database returns zero attempted/sent messages.
+
+```shell
+curl -X POST "http://localhost:8080/api/notifications/test"
+curl -X POST "http://localhost:8080/api/notifications/news"
+curl -X POST "http://localhost:8080/api/notifications/news?limit=5"
+```
+
+These endpoints only read existing news; they do not scrape, create news, or alter
+deduplication. They intentionally allow manual resending of stored records. The
+maximum is per invocation, not a global rate limit. Group selection comes only
+from `qq.test-group-id`. The console sender remains the primary sender for the
+automated newly-saved-record pipeline; enabling QQ does not redirect fetch output.
+
+The sender posts to `/send_group_msg` with a numeric `group_id` and one `text`
+message segment. Japanese text, newlines, URLs, and literal CQ-looking text are
+kept as text, without parsing them as commands. It requires a 2xx response plus
+`status=ok`, integer `retcode=0`, and a returned `message_id`. This follows the
+[OneBot public API](https://github.com/botuniverse/onebot-11/blob/master/api/public.md)
+and [HTTP response contract](https://github.com/botuniverse/onebot-11/blob/master/communication/http.md).
+Async responses are not treated as confirmed sends. The `sent` count represents
+API acknowledgements, not a separately verified receipt in QQ.
+
+Example success from a mocked test, not a live group:
+
+```json
+{"attempted": 3, "sent": 3, "errors": []}
+```
+
+Sending stops on the first failure and reports earlier successful sends. API
+failures/non-2xx responses return HTTP 502, unavailable APIs return 503, and
+timeouts return 504; the result includes `attempted`, `sent`, and safe `errors`.
+Formatting failures return 500. Configuration/query errors return a JSON message.
+Errors never return tokens, request headers, or upstream response bodies. Failure
+logs use safe categories. The client has a 3-second connection timeout and a
+5-second response timeout, and does not follow redirects or implement retries.
+
+`imageUrl` remains a text link supplied by the existing formatter. Image message
+segments, downloads, scheduling, multi-group delivery, retries, persistent delivery
+status, OCR, and translation are not implemented. **Live QQ sending was not
+verified.** No claim is made that text, URLs, or images reached a real group.
 
 Synthetic card-reveal example from the unit test (not an actual official announcement):
 
@@ -462,8 +546,9 @@ checks described above.
 - Phase 9: Extend parser fixture coverage and news deduplication tests.
 
 Future extension points: `CardTextExtractor` and `TranslationService` interfaces.
-Chinese translation, QQ / Discord delivery, and Yu-Gi-Oh! OCG / TCG support are
-future work and are not implemented. No OCR, paid APIs, social media APIs, or
+Chinese translation, automatic QQ / Discord delivery, and Yu-Gi-Oh! OCG / TCG support
+are future work and are not implemented. Manual QQ text smoke testing is available
+only as described above. No OCR, paid APIs, direct X/Twitter APIs, or
 frontend framework are included.
 
 ## Images and attribution
