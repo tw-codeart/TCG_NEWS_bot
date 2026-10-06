@@ -5,6 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
+import java.time.Duration;
 
 @Component
 @ConditionalOnProperty(prefix = "rsshub", name = "enabled", havingValue = "true")
@@ -14,6 +15,18 @@ public class RssHubProperties {
     private String baseUrl;
     private String wsRoute = "/twitter/user/wstcg";
     private int notificationBatchLimit = 3;
+    private Duration pollingInterval = Duration.ofMinutes(5);
+
+    public Duration getPollingInterval() {
+        return pollingInterval;
+    }
+
+    public void setPollingInterval(Duration pollingInterval) {
+        if (pollingInterval == null || pollingInterval.compareTo(Duration.ofMinutes(1)) < 0) {
+            throw new IllegalArgumentException("rsshub.polling-interval must be at least 1 minute");
+        }
+        this.pollingInterval = pollingInterval;
+    }
 
     public int getNotificationBatchLimit() {
         return notificationBatchLimit;

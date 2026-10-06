@@ -3,7 +3,7 @@
 A Java portfolio project for aggregating official trading card game news,
 starting with Japanese Weiß Schwarz.
 
-## Current status: WS collection and bounded RSSHub-to-QQ notifications
+## Current status: WS collection, bounded QQ notifications, and optional RSSHub polling
 
 The following source code and configuration have been added:
 
@@ -44,6 +44,27 @@ The following source code and configuration have been added:
   configured QQ test group through a OneBot v11 / NapCat-compatible HTTP API.
 - RSSHub records routed from the shared ingestion result to QQ, with a persistent
   first-history baseline marker and a configurable limit of 1–5 notifications.
+- Optional Spring scheduling that checks only the WS RSSHub source, disabled by
+  default, with a configurable delay of 5 minutes after each completed check.
+
+**Polling verification (2026-10-07):** `mvn test` and `mvn package` passed all
+96 tests with no failures, errors, or skipped tests. Six added tests verify the
+single-source fetch path, serialized manual/scheduled entry points, continuation
+after a polling failure, disabled defaults,
+the configured fixed delay/initial delay registered with Spring, and rejection
+of intervals below one minute. Tests use mocks and do not wait for or contact
+live sources. Production periodic execution has not yet been verified.
+
+**Live manual verification (2026-10-07):** The local RSSHub route returned HTTP
+200. The existing Java parser read 11 entries and produced 10 card-reveal records
+from 4 matching posts, preserving 10 distinct image URLs. The newest matching
+publication instant was 2026-10-06T02:50:00Z. A user-run manual fetch saved 210
+records across 3 sources, including those 10 X records. Repeated manual fetches
+reported 0 saves and 210 duplicates. One stored RSSHub record was submitted to
+the configured QQ test group through the existing manual notification endpoint;
+the API acknowledged 1 send with no errors. Actual group receipt remains for
+the user to confirm. Automatic notification of a newly published post has not
+yet been verified.
 
 **RSSHub-to-QQ verification (2026-10-06):** `mvn test` and `mvn package` both
 passed all 90 tests with no failures, errors, or skipped tests. Ten added tests
@@ -162,8 +183,8 @@ stored product URLs. From Spring/Java code, the single-source
 `NewsIngestionService.fetchAndSave(source)` method remains available.
 Manual fetches notify newly saved website news through the console sender.
 Enabled RSSHub records use the guarded QQ path described below when QQ is also
-enabled. Startup/scheduled fetches are not implemented. The separate manual QQ
-smoke endpoints remain available when enabled.
+enabled. Optional periodic RSSHub checks are described below. The separate
+manual QQ smoke endpoints remain available when enabled.
 
 ## Product discovery scope
 
@@ -259,6 +280,8 @@ rsshub:
   base-url: ""
   ws-route: /twitter/user/wstcg
   notification-batch-limit: 3
+  polling-enabled: false
+  polling-interval: PT5M
 ```
 
 To enable it, set `RSSHUB_ENABLED=true` and `RSSHUB_BASE_URL` to the base URL of
@@ -312,9 +335,9 @@ renditions of an image can still create separate records. The same card on the
 website and X may have different URLs/hashes and be stored twice; fuzzy matching
 or cross-source card identity is not implemented.
 
-The route `/twitter/user/wstcg` is an example, not a verified availability claim.
-Feed freshness, media completeness, route support, and X access depend on the
-external RSSHub instance. **Live RSSHub feed was not verified.**
+The route `/twitter/user/wstcg` was manually verified on the local instance as
+recorded above; this does not guarantee continued availability. Feed freshness,
+media completeness, route support, and X access depend on the external instance.
 
 ## RSSHub-to-QQ notification scope
 
@@ -359,11 +382,36 @@ documented below, then restart the Java application and use `POST /api/fetch`.
 The first nonempty fetch initializes history; later newly discovered records can
 be notified. Deleting the marker resets history initialization. Deleting news
 while retaining the marker can make old feed entries newly saved again, subject
-to the cap. Concurrent fetches and file-database schema upgrades have not been
-separately verified. No scheduler, retries, delivery queue, fuzzy deduplication,
+to the cap. Live multi-process concurrency and file-database schema upgrades
+have not been separately verified. Optional polling is described below;
+no retries, delivery queue, fuzzy deduplication,
 OCR, translation, or additional game is introduced.
 
-**Live RSSHub feed was not verified. No real RSSHub item reaching QQ was verified.**
+The live manual verification above supersedes the earlier unverified-feed status.
+The QQ API acknowledged a stored RSSHub smoke message; automatic sending of a
+newly published post is still unverified.
+
+## Optional periodic RSSHub checks
+
+Set `RSSHUB_POLLING_ENABLED=true` before restarting Java to enable periodic
+checks. `RSSHUB_ENABLED=true` and a working RSSHub base URL are also required.
+`RSSHUB_POLLING_INTERVAL=PT5M` specifies five minutes; `PT15M` specifies fifteen.
+Intervals below one minute are rejected. This changes no group IDs or credentials.
+
+`RssHubPollingService` uses Spring `@Scheduled` with a fixed delay: the first
+check waits one configured interval after startup, and later checks wait that
+interval after the previous check finishes. Only `ws-jp-rsshub-card-reveals` is
+selected; the official website sources are not scraped on every timer tick.
+Manual and scheduled fetches share the same service lock, preventing overlapping
+collection in this application instance. Existing save/deduplication, history
+bootstrap, formatter, and QQ batch limits are reused. A failed check is logged;
+later scheduled checks continue.
+
+This is polling, not an X push subscription. Detection can be delayed by the
+configured interval, request duration, and RSSHub's own cache/fetch behavior.
+Java, RSSHub, and NapCat must remain running and the computer must remain awake
+for local checks to continue. Nothing runs while Java is stopped. Excess records
+still follow the existing skip policy; no retry queue or catch-up delivery is added.
 
 ## News deduplication scope
 
@@ -397,7 +445,9 @@ or date can remain a separate announcement. Existing duplicate rows are not
 automatically cleaned up, and incoming metadata does not update a matched row.
 The database enforces unique hashes only. Concurrent fetches with different hashes
 but the same composite identity can still race; composite database constraints or
-coordination are not implemented. The deduplication rules require no new schema
+coordination across direct ingestion calls or multiple instances is not implemented.
+Manual and scheduled fetches share a lock in this application instance.
+The deduplication rules require no new schema
 constraints; the RSSHub addition introduces only the nullable `publishedAt` field.
 Timestamp persistence was tested in fresh H2 databases; upgrading an existing
 file-based database has not been separately verified.
@@ -452,8 +502,9 @@ HTTP 503 with `{"message":"News storage is unavailable"}`.
 Fetch requests are synchronous and can take time because product pages are visited
 sequentially. Per-product failures retain the existing source logging behavior;
 the API reports source-level failures, not every skipped page or parser entry.
-Concurrency limitations from Phase 6 still apply. Authentication, background jobs,
-and frontend interfaces are not implemented.
+The application serializes its manual and scheduled fetches. Direct ingestion
+calls and separate application instances are not coordinated. Authentication,
+website polling, and frontend interfaces are not implemented.
 
 ## Notification message formatting
 
@@ -558,10 +609,10 @@ logs use safe categories. The client has a 3-second connection timeout and a
 5-second response timeout, and does not follow redirects or implement retries.
 
 `imageUrl` remains a text link supplied by the existing formatter. Image message
-segments, downloads, scheduling, multi-group delivery, retries, persistent delivery
+segments, downloads, multi-group delivery, retries, persistent delivery
 status, OCR, and translation are not implemented. At implementation time, QQ
 sending was verified only with mocks; the user subsequently confirmed successful
-live QQ smoke testing. Live RSSHub-to-QQ sending and image attachment delivery
+live QQ smoke testing. Automatic sending of a newly published RSSHub post and image attachment delivery
 remain unverified.
 
 Synthetic card-reveal example from the unit test (not an actual official announcement):
@@ -613,9 +664,9 @@ checks described above.
 - Phase 9: Extend parser fixture coverage and news deduplication tests.
 
 Future extension points: `CardTextExtractor` and `TranslationService` interfaces.
-Chinese translation, scheduled QQ delivery, Discord delivery, and Yu-Gi-Oh! OCG / TCG
-support are future work. Manual QQ smoke tests and RSSHub notifications during
-manual fetches are available as described above. No OCR, paid APIs, direct X/Twitter APIs, or
+Chinese translation, Discord delivery, and Yu-Gi-Oh! OCG / TCG support are future
+work. Manual QQ smoke tests and RSSHub notifications during manual or enabled
+periodic checks are available as described above. No OCR, paid APIs, direct X/Twitter APIs, or
 frontend framework are included.
 
 ## Images and attribution

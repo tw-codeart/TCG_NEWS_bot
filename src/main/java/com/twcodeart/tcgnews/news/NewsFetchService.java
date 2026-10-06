@@ -31,13 +31,26 @@ public class NewsFetchService {
     }
 
     public NewsFetchSummary fetchAll() {
+        return fetchSources(sources);
+    }
+
+    public NewsFetchSummary fetchSource(String sourceId) {
+        var selected = sources.stream().filter(source -> sourceId.equals(source.getSourceId())).toList();
+        if (selected.isEmpty()) {
+            throw new IllegalArgumentException("No configured news source: " + sourceId);
+        }
+        return fetchSources(selected);
+    }
+
+    // Manual and scheduled fetches share this lock and the same save/notification flow.
+    private synchronized NewsFetchSummary fetchSources(List<NewsSource> selectedSources) {
         int fetched = 0;
         int saved = 0;
         int duplicates = 0;
         int unprocessed = 0;
         int successfulSources = 0;
         List<NewsFetchSummary.SourceError> errors = new ArrayList<>();
-        for (NewsSource source : sources) {
+        for (NewsSource source : selectedSources) {
             NewsIngestionService.IngestionResult result;
             boolean ingestionCompleted = false;
             try {
