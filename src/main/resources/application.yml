@@ -18,6 +18,8 @@ spring:
       enabled: false
 
 rsshub:
+  ocg-enabled: ${RSSHUB_OCG_ENABLED:false}
+  ocg-route: ${RSSHUB_OCG_ROUTE:/twitter/user/YuGiOh_OCG_INFO}
   enabled: ${RSSHUB_ENABLED:false}
   base-url: ${RSSHUB_BASE_URL:}
   ws-route: ${RSSHUB_WS_ROUTE:/twitter/user/wstcg}
@@ -30,6 +32,8 @@ logging:
     console: UTF-8
 
 qq:
+  image-forward-enabled: ${QQ_IMAGE_FORWARD_ENABLED:true}
+  ocr-enabled: ${QQ_OCR_ENABLED:true}
   enabled: ${QQ_ENABLED:false}
   api-base-url: ${QQ_API_BASE_URL:http://localhost:3000}
   test-group-id: ${QQ_TEST_GROUP_ID:}

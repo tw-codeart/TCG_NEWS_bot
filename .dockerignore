@@ -1,0 +1,7 @@
+# Whitelist the runtime artifact; credentials, databases, and tools stay outside.
+**
+!Dockerfile
+!.dockerignore
+!target/
+target/*
+!target/tcg-news-bot-0.1.0-SNAPSHOT.jar

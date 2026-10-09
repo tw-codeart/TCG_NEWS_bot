@@ -26,14 +26,26 @@ public class QqNotificationController {
 
     @PostMapping("/news")
     public ResponseEntity<QqNotificationTestService.Result> storedNews(@RequestParam(defaultValue = "3") int limit,
+            @RequestParam(name = "game", required = false) com.twcodeart.tcgnews.news.Game game,
             @RequestParam Map<String, String> parameters, @RequestBody(required = false) String body) {
-        validateRequest(parameters, body, Set.of("limit"));
-        return response(service.sendStoredNews(limit));
+        validateRequest(parameters, body, Set.of("limit", "game"));
+        return response(service.sendStoredNews(limit, game));
+    }
+
+    @PostMapping("/posts")
+    public ResponseEntity<QqNotificationTestService.PostResult> storedPosts(
+            @RequestParam(defaultValue="1") int limit,
+            @RequestParam com.twcodeart.tcgnews.news.Game game,
+            @RequestParam Map<String,String> parameters, @RequestBody(required=false) String body) {
+        validateRequest(parameters,body,Set.of("limit","game"));
+        var result=service.sendStoredPosts(limit,game);
+        return ResponseEntity.status(result.errors().isEmpty() ? org.springframework.http.HttpStatus.OK
+                : QqNotificationApiExceptionHandler.status(result.errors().get(0).reason())).body(result);
     }
 
     private void validateRequest(Map<String, String> parameters, String body, Set<String> allowed) {
         if (!allowed.containsAll(parameters.keySet()) || (body != null && !body.isBlank())) {
-            throw new IllegalArgumentException("Only the documented limit parameter is allowed; request bodies are not accepted");
+            throw new IllegalArgumentException("Only documented parameters are allowed; request bodies are not accepted");
         }
     }
 

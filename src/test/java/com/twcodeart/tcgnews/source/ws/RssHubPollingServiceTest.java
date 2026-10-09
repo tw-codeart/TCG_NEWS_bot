@@ -11,6 +11,18 @@ import static org.mockito.Mockito.*;
 class RssHubPollingServiceTest {
 
     @Test
+    void selectsBothConfiguredRssHubSourcesInOneBoundedFetchWhenOcgIsEnabled() {
+        var fetch = mock(NewsFetchService.class);
+        var properties = new RssHubProperties();
+        properties.setOcgEnabled(true);
+        var ids = List.of(WsRssHubNewsSource.SOURCE_ID, com.twcodeart.tcgnews.source.ocg.OcgRssHubNewsSource.SOURCE_ID);
+        when(fetch.fetchSourcesByIds(ids)).thenReturn(new NewsFetchSummary(13,13,0,0,2,List.of()));
+        new RssHubPollingService(fetch, properties).poll();
+        verify(fetch).fetchSourcesByIds(ids);
+        verify(fetch, never()).fetchAll();
+    }
+
+    @Test
     void selectsOnlyTheRssHubSourceAndContinuesAfterAnUnexpectedFailure() {
         var fetch = mock(NewsFetchService.class);
         when(fetch.fetchSource(WsRssHubNewsSource.SOURCE_ID)).thenThrow(new IllegalStateException("Temporary failure"))

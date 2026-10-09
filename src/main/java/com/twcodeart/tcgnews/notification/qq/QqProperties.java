@@ -12,9 +12,16 @@ import static com.twcodeart.tcgnews.notification.qq.QqNotificationException.Reas
 public class QqProperties {
 
     private boolean enabled;
+    private boolean imageForwardEnabled = true;
+    private boolean ocrEnabled = true;
     private String apiBaseUrl = "http://localhost:3000";
     private String testGroupId = "";
     private String accessToken = "";
+
+    public boolean isImageForwardEnabled() { return imageForwardEnabled; }
+    public void setImageForwardEnabled(boolean value) { imageForwardEnabled = value; }
+    public boolean isOcrEnabled() { return ocrEnabled; }
+    public void setOcrEnabled(boolean value) { ocrEnabled = value; }
 
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
@@ -47,7 +54,12 @@ public class QqProperties {
         }
     }
 
-    public URI actionUri() {
+    public URI actionUri() { return actionUri("send_group_msg"); }
+
+    public URI actionUri(String action) {
+        if (!java.util.Set.of("send_group_msg", "send_group_forward_msg", "ocr_image", "get_login_info").contains(action)) {
+            throw new IllegalArgumentException("Unsupported QQ action");
+        }
         try {
             URI base = URI.create(apiBaseUrl == null ? "" : apiBaseUrl.strip());
             if (base.getHost() == null || base.getUserInfo() != null || base.getQuery() != null
@@ -55,7 +67,7 @@ public class QqProperties {
                     || "https".equalsIgnoreCase(base.getScheme()))) {
                 throw new IllegalArgumentException();
             }
-            return URI.create(base.toASCIIString().replaceAll("/+$", "") + "/send_group_msg");
+            return URI.create(base.toASCIIString().replaceAll("/+$", "") + "/" + action);
         } catch (IllegalArgumentException exception) {
             throw new QqNotificationException(CONFIGURATION,
                     "qq.api-base-url must be an HTTP(S) URL without credentials, query or fragment");

@@ -25,6 +25,7 @@ class NewsNotificationServiceTest {
         verify(formatter).format(first);
         verify(formatter).format(second);
         verify(sender).send("Existing formatter output");
+        verify(sender).acceptsImages();
         verifyNoMoreInteractions(sender);
     }
 

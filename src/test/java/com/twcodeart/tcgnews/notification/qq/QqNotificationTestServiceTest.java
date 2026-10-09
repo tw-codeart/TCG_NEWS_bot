@@ -33,7 +33,7 @@ class QqNotificationTestServiceTest {
     @Test
     void sendsOneTestMessageWithoutQueryingStoredNews() {
         assertThat(service.sendTest().sent()).isEqualTo(1);
-        verify(sender).send("[TCG News Bot QQ Test]\n今日のカード notification smoke test.\nhttps://ws-tcg.com/");
+        verify(sender).send("[TCG News Bot QQ Test]\n今日のカード notification smoke test.");
         verifyNoInteractions(query, formatter);
     }
 

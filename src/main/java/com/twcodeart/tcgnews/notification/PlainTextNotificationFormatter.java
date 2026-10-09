@@ -17,6 +17,7 @@ public class PlainTextNotificationFormatter implements NotificationFormatter {
         Objects.requireNonNull(newsItem, "newsItem must not be null");
         String game = switch (newsItem.getGame()) {
             case WEISS_SCHWARZ -> "Weiß Schwarz";
+            case YUGIOH_OCG -> "Yu-Gi-Oh! OCG";
         };
         String category = switch (newsItem.getCategory()) {
             case CARD_REVEAL -> "Card Reveal";
@@ -33,6 +34,8 @@ public class PlainTextNotificationFormatter implements NotificationFormatter {
         LocalDate date = cardReveal ? newsItem.getRevealDate() : newsItem.getPublishedDate();
         if (date != null) {
             addField(details, cardReveal ? "Reveal date" : "Published date", date.toString());
+        } else if (newsItem.getGame() == com.twcodeart.tcgnews.news.Game.YUGIOH_OCG && newsItem.getPublishedDate() != null) {
+            addField(details, "Published date", newsItem.getPublishedDate().toString());
         }
         addField(details, "Title", newsItem.getTitle());
         if (!details.isEmpty()) {

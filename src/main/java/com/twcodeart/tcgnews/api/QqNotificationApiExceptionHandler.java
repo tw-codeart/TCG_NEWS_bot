@@ -32,7 +32,12 @@ public class QqNotificationApiExceptionHandler {
 
     @ExceptionHandler({IllegalArgumentException.class, MethodArgumentTypeMismatchException.class})
     public ResponseEntity<ApiError> invalidRequest(Exception exception) {
-        return ResponseEntity.badRequest().body(new ApiError("Use no body or group parameter; limit must be an integer between 1 and 5"));
+        String message="Use a supported game, no body/group parameter, and an integer limit between 1 and 5";
+        if(exception instanceof IllegalArgumentException && exception.getMessage()!=null
+                && exception.getMessage().startsWith("Selected posts exceed five forward packets")) {
+            message="Selected posts exceed five forward packets; lower the post limit";
+        }
+        return ResponseEntity.badRequest().body(new ApiError(message));
     }
 
     @ExceptionHandler(DataAccessException.class)

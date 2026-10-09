@@ -3,7 +3,36 @@
 A Java portfolio project for aggregating official trading card game news,
 starting with Japanese Weiß Schwarz.
 
-## Current status: WS collection, bounded QQ notifications, and optional RSSHub polling
+## Current status: WS collection, optional OCG RSSHub announcements, and bounded QQ notifications
+
+**Whole-post preview verification (2026-10-10):** `mvn test` and `mvn package`
+pass 130 tests. The legacy one-record preview can show only one image; the new
+`POST /api/notifications/posts?game=WEISS_SCHWARZ&limit=1` selects all stored
+images of the latest official X post, excluding website news and using publication
+time for ordering. WS image-mode auto notifications now use complete image packets
+even with OCG disabled. Read-only `GET /api/status` identifies the running API
+revision and effective public flags, without credentials or group IDs.
+Live WS feed availability and group multi-image receipt remain unverified.
+See [whole-post previews and diagnosis](docs/post-previews.md).
+
+**OCG verification (2026-10-09):** `mvn test` and `mvn package` pass all 123 tests.
+The optional `@YuGiOh_OCG_INFO` source filters announcement headings like the
+user-supplied `収録カード公開`, excluding explicit reprints and ordinary card
+introductions. It shares ingestion/deduplication, has a separate history baseline,
+and can package thirteen new images in one merged forward. With OCG enabled,
+WS/OCG automatic RSSHub notices share a three-packet default/five-packet maximum,
+up to twenty image records per packet. Excess records are stored but skipped,
+without replay. Text filtering cannot prove card novelty; live OCG feed access,
+group receipt and Japanese OCR accuracy remain unverified.
+See [OCG configuration and limitations](docs/ocg-rsshub.md).
+
+**QQ images/OCR verification (2026-10-09):** `mvn test` and `mvn package` both
+passed all 107 tests with no failures, errors or skips. Eleven added tests cover
+original-image forward nodes, unverified Japanese OCR responses, failures/timeouts,
+missing images, disabled OCR, source URL removal from QQ text, valid bot identity,
+manual previews, distinct new images, deduplication and committed-row preservation.
+All QQ HTTP calls are mocked. Live image/forward receipt and Japanese recognition
+accuracy are **not verified**. See [QQ image/OCR details](docs/qq-image-notifications.md).
 
 The following source code and configuration have been added:
 
@@ -46,6 +75,9 @@ The following source code and configuration have been added:
   first-history baseline marker and a configurable limit of 1–5 notifications.
 - Optional Spring scheduling that checks only the WS RSSHub source, disabled by
   default, with a configurable delay of 5 minutes after each completed check.
+- A Docker runtime image definition and Compose deployment bundle for Windows
+  notebooks: Java and RSSHub containers, native NapCat, and a persistent H2 volume.
+  Runtime image building/container deployment has not yet been verified.
 
 **Polling verification (2026-10-07):** `mvn test` and `mvn package` passed all
 96 tests with no failures, errors, or skipped tests. Six added tests verify the
@@ -385,7 +417,8 @@ while retaining the marker can make old feed entries newly saved again, subject
 to the cap. Live multi-process concurrency and file-database schema upgrades
 have not been separately verified. Optional polling is described below;
 no retries, delivery queue, fuzzy deduplication,
-OCR, translation, or additional game is introduced.
+translation or additional game was introduced in that integration phase;
+OCR support was added later as described above.
 
 The live manual verification above supersedes the earlier unverified-feed status.
 The QQ API acknowledged a stored RSSHub smoke message; automatic sending of a
@@ -608,12 +641,15 @@ Errors never return tokens, request headers, or upstream response bodies. Failur
 logs use safe categories. The client has a 3-second connection timeout and a
 5-second response timeout, and does not follow redirects or implement retries.
 
-`imageUrl` remains a text link supplied by the existing formatter. Image message
-segments, downloads, multi-group delivery, retries, persistent delivery
-status, OCR, and translation are not implemented. At implementation time, QQ
-sending was verified only with mocks; the user subsequently confirmed successful
-live QQ smoke testing. Automatic sending of a newly published RSSHub post and image attachment delivery
-remain unverified.
+`imageUrl` is passed separately to the QQ transport. With the default image-forward
+mode, metadata and the original image plus unverified OCR text form one merged
+forward per news item; visible text omits links while stored source URLs remain.
+NapCat performs runtime image retrieval and Windows OCR. No image is altered or
+permanently stored by Java. OCR errors still allow image delivery with a notice.
+Multi-group delivery, retries, persistent delivery status and translation are not
+implemented. The user confirmed the earlier live plain-text smoke test; current
+image/forward receipt and Japanese OCR accuracy remain unverified. See the
+[configuration and limitations](docs/qq-image-notifications.md).
 
 Synthetic card-reveal example from the unit test (not an actual official announcement):
 
@@ -659,15 +695,35 @@ Non-card news can omit image and reveal fields.
 Card reveals and information news use metadata hashes and the centralized identity
 checks described above.
 
+## Windows notebook deployment
+
+Build the JAR with `mvn test` and `mvn package`, then use
+`powershell -File scripts/package-notebook.ps1` to create a whitelisted ZIP with
+the JAR, Dockerfile, Compose configuration, empty environment example, checksums,
+and instructions. The bundle omits real credentials, database files, images,
+Git metadata, and local tooling. It needs Docker Desktop in Linux-container mode
+and internet access to pull the pinned images on the notebook. Native NapCat
+remains on Windows; Java connects through `host.docker.internal`.
+
+See [deployment instructions](deploy/README.md). The official Compose v5.6.0
+standalone tool successfully validated the configuration and safe disabled
+QQ/polling defaults. Public registry metadata confirmed the JRE and RSSHub
+digests and amd64/arm64 support. No Docker Engine is available on the preparation
+machine, so image build, container startup, persistence, host networking, and
+actual laptop deployment have not been verified. The application code and its
+last confirmed 96-test Maven result are unchanged by this packaging-only phase.
+
 ## Planned / Roadmap
 
 - Phase 9: Extend parser fixture coverage and news deduplication tests.
 
-Future extension points: `CardTextExtractor` and `TranslationService` interfaces.
-Chinese translation, Discord delivery, and Yu-Gi-Oh! OCG / TCG support are future
+`CardTextExtractor` now has a NapCat Windows OCR implementation.
+`TranslationService` remains a future extension point.
+Group subscription commands restricted to owners/admins are **Planned**.
+Chinese translation, Discord delivery, OCG website sources and Yu-Gi-Oh! TCG support are future
 work. Manual QQ smoke tests and RSSHub notifications during manual or enabled
-periodic checks are available as described above. No OCR, paid APIs, direct X/Twitter APIs, or
-frontend framework are included.
+periodic checks and unverified OCR/image forwarding are available as described
+above. No paid APIs, direct X/Twitter APIs or frontend framework are included.
 
 ## Images and attribution
 

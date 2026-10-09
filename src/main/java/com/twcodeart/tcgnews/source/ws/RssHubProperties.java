@@ -13,6 +13,14 @@ import java.time.Duration;
 public class RssHubProperties {
 
     private String baseUrl;
+    private boolean ocgEnabled;
+    private String ocgRoute = "/twitter/user/YuGiOh_OCG_INFO";
+
+    public boolean isOcgEnabled() { return ocgEnabled; }
+    public void setOcgEnabled(boolean value) { ocgEnabled = value; }
+    public String getOcgRoute() { return ocgRoute; }
+    public void setOcgRoute(String value) { ocgRoute = value; }
+    public URI ocgFeedUri() { return feedUri(ocgRoute); }
     private String wsRoute = "/twitter/user/wstcg";
     private int notificationBatchLimit = 3;
     private Duration pollingInterval = Duration.ofMinutes(5);
@@ -55,7 +63,9 @@ public class RssHubProperties {
         this.wsRoute = wsRoute;
     }
 
-    public URI feedUri() {
+    public URI feedUri() { return feedUri(wsRoute); }
+
+    private URI feedUri(String routePath) {
         if (baseUrl == null || baseUrl.isBlank()) {
             throw new IllegalArgumentException("rsshub.base-url is required when RSSHub is enabled");
         }
@@ -65,14 +75,14 @@ public class RssHubProperties {
                 || base.getUserInfo() != null || base.getQuery() != null || base.getFragment() != null) {
             throw new IllegalArgumentException("rsshub.base-url must be an HTTP(S) URL without credentials, query or fragment");
         }
-        if (wsRoute == null || !wsRoute.startsWith("/") || wsRoute.startsWith("//")) {
+        if (routePath == null || !routePath.startsWith("/") || routePath.startsWith("//")) {
             throw new IllegalArgumentException("rsshub.ws-route must start with a single slash");
         }
-        URI route = URI.create(wsRoute);
+        URI route = URI.create(routePath);
         if (route.getFragment() != null) {
             throw new IllegalArgumentException("rsshub.ws-route must not contain a fragment");
         }
         String prefix = base.toASCIIString().replaceAll("/+$", "");
-        return URI.create(prefix + wsRoute).normalize();
+        return URI.create(prefix + routePath).normalize();
     }
 }

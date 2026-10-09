@@ -42,8 +42,18 @@ public class NewsFetchService {
         return fetchSources(selected);
     }
 
+    public NewsFetchSummary fetchSourcesByIds(List<String> sourceIds) {
+        var selected = sources.stream().filter(source -> sourceIds.contains(source.getSourceId())).toList();
+        if (selected.stream().map(NewsSource::getSourceId).distinct().count() != sourceIds.stream().distinct().count()) {
+            throw new IllegalArgumentException("A requested news source is not configured");
+        }
+        return fetchSources(selected);
+    }
+
     // Manual and scheduled fetches share this lock and the same save/notification flow.
     private synchronized NewsFetchSummary fetchSources(List<NewsSource> selectedSources) {
+        var rssHub = rssHubNotifications.getIfAvailable();
+        int remainingMessages = rssHub == null ? 0 : rssHub.notificationLimit();
         int fetched = 0;
         int saved = 0;
         int duplicates = 0;
@@ -73,9 +83,8 @@ public class NewsFetchService {
             duplicates += result.duplicates();
             unprocessed += result.unprocessed();
             // Persisted records are available even when the source's batch saved only partially.
-            var rssHub = rssHubNotifications.getIfAvailable();
             if (rssHub != null && rssHub.handles(source.getSourceId())) {
-                rssHub.notifySavedItems(result, ingestionCompleted);
+                remainingMessages -= rssHub.notifySavedItems(source.getSourceId(), result, ingestionCompleted, remainingMessages);
             } else {
                 notifications.notifyNewItems(result.savedItems());
             }

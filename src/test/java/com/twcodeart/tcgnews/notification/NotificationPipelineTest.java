@@ -64,6 +64,7 @@ class NotificationPipelineTest {
         assertThat(repeated.saved()).isZero();
         assertThat(repeated.duplicates()).isEqualTo(1);
         assertThat(repository.count()).isEqualTo(1);
+        verify(sender).acceptsImages();
         verifyNoMoreInteractions(formatter, sender);
     }
 

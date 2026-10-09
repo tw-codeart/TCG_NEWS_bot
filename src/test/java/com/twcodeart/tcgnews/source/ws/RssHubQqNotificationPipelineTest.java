@@ -79,6 +79,7 @@ class RssHubQqNotificationPipelineTest {
         verify(formatter).format(formatted.capture());
         assertThat(formatted.getValue().getId()).isEqualTo(item.getId());
         assertThat(fetch.fetchAll().saved()).isZero();
+        verify(qq, atLeastOnce()).acceptsImages();
         verifyNoMoreInteractions(qq);
         assertThat(news.count()).isEqualTo(6);
     }
@@ -97,6 +98,7 @@ class RssHubQqNotificationPipelineTest {
         var repeated = fetch(source);
         assertThat(repeated.saved()).isZero();
         assertThat(repeated.duplicates()).isEqualTo(7);
+        verify(qq, atLeastOnce()).acceptsImages();
         verifyNoMoreInteractions(qq);
         assertThat(news.count()).isEqualTo(12);
     }
@@ -122,6 +124,7 @@ class RssHubQqNotificationPipelineTest {
         assertThat(news.count()).isEqualTo(12);
         verify(qq, times(3)).send(any(String.class));
         assertThat(fetch(source).saved()).isZero();
+        verify(qq, atLeastOnce()).acceptsImages();
         verifyNoMoreInteractions(qq);
     }
 
@@ -190,6 +193,36 @@ class RssHubQqNotificationPipelineTest {
         assertThat(news.count()).isEqualTo(5);
         assertThat(bootstraps.count()).isEqualTo(1);
         verifyNoInteractions(qq, formatter);
+    }
+
+    @Test
+    void imageNotificationsKeepNewImagesDistinctRespectTheLimitAndNeverResendDuplicates() throws Exception {
+        bootstrap();
+        when(qq.acceptsImages()).thenReturn(true);
+        when(client.fetch()).thenReturn(fixture("ws-rsshub-new-multiple.xml"));
+        assertThat(fetch(source).saved()).isEqualTo(7);
+        var packet = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(qq).sendBatch(packet.capture());
+        @SuppressWarnings("unchecked") List<NotificationMessage> messages=packet.getValue();
+        assertThat(messages).hasSize(7).extracting(NotificationMessage::imageUrl).doesNotHaveDuplicates();
+        assertThat(messages).allMatch(message -> message.text().contains("今日のカード"));
+        verify(formatter, times(7)).format(any(NewsItem.class));
+        assertThat(fetch(source).saved()).isZero();
+        verify(qq, times(1)).sendBatch(anyList());
+        assertThat(news.count()).isEqualTo(12);
+    }
+
+    @Test
+    void failedImageForwardDoesNotRollBackSavedNewsOrCauseDuplicateRetries() throws Exception {
+        bootstrap();
+        when(qq.acceptsImages()).thenReturn(true);
+        when(client.fetch()).thenReturn(fixture("ws-rsshub-new-multiple.xml"));
+        doThrow(new QqNotificationException(QqNotificationException.Reason.API_FAILURE, "QQ API returned HTTP 502"))
+                .when(qq).sendBatch(anyList());
+        assertThat(fetch(source).saved()).isEqualTo(7);
+        assertThat(news.count()).isEqualTo(12);
+        assertThat(fetch(source).saved()).isZero();
+        verify(qq, times(1)).sendBatch(anyList());
     }
 
     private byte[] fixture(String name) throws Exception {

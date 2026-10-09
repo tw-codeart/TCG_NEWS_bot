@@ -29,6 +29,7 @@ class QqNotificationSenderTest {
     void configureSyntheticEndpoint() {
         properties = new QqProperties();
         properties.setEnabled(true);
+        properties.setImageForwardEnabled(false);
         properties.setApiBaseUrl("http://qq-api.example/");
         properties.setTestGroupId("42"); // Synthetic test ID, not a real group configuration.
         RestClient.Builder builder = RestClient.builder();

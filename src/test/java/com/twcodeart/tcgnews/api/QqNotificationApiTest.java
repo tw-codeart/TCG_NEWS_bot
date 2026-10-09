@@ -54,7 +54,7 @@ class QqNotificationApiTest {
         mvc.perform(post("/api/notifications/test")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.attempted").value(1)).andExpect(jsonPath("$.sent").value(1))
                 .andExpect(jsonPath("$.errors").isEmpty());
-        verify(qqSender).send("[TCG News Bot QQ Test]\n今日のカード notification smoke test.\nhttps://ws-tcg.com/");
+        verify(qqSender).send("[TCG News Bot QQ Test]\n今日のカード notification smoke test.");
         verifyNoInteractions(cardSource, informationSource, formatter);
     }
 
@@ -121,6 +121,32 @@ class QqNotificationApiTest {
         mvc.perform(post("/api/notifications/test")).andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.message").value("qq.test-group-id must be a positive numeric group ID"));
         verifyNoInteractions(qqSender, formatter, cardSource, informationSource);
+    }
+
+    @Test
+    void manualPreviewPassesSeparateImageMetadataAndStillUsesTheSharedFormatter() throws Exception {
+        repository.saveAndFlush(news(1));
+        when(qqSender.acceptsImages()).thenReturn(true);
+        mvc.perform(post("/api/notifications/news").param("limit", "1")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.sent").value(1));
+        verify(qqSender).send(any(String.class), eq("https://ws-tcg.com/cards/test-1.png"));
+        verify(formatter).format(any(NewsItem.class));
+        verifyNoInteractions(cardSource, informationSource);
+    }
+
+    @Test
+    void previewsOnlyStoredOcgRecordsWithoutChangingTheConfiguredGroup() throws Exception {
+        repository.saveAndFlush(new NewsItem(Game.YUGIOH_OCG, NewsCategory.CARD_REVEAL, "収録カード公開", null,
+                null, java.time.LocalDate.of(2026,10,8), "https://pbs.twimg.com/media/synthetic-ocg.png",
+                "https://x.com/YuGiOh_OCG_INFO/status/123", "f".repeat(64)));
+        repository.saveAndFlush(news(1));
+        mvc.perform(post("/api/notifications/news").param("game", "YUGIOH_OCG").param("limit", "1"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.sent").value(1));
+        var message = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(qqSender).send(message.capture());
+        assertThat(message.getValue()).contains("Yu-Gi-Oh! OCG", "収録カード公開", "Published date: 2026-10-08")
+                .doesNotContain("Weiß Schwarz");
+        verifyNoInteractions(cardSource, informationSource);
     }
 
     private NewsItem news(int number) {

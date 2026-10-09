@@ -29,7 +29,12 @@ public class NewsNotificationService {
         int failed = 0;
         for (NewsItem item : savedItems) {
             try {
-                destination.send(formatter.format(item));
+                String message = formatter.format(item);
+                if (destination.acceptsImages()) {
+                    destination.send(message, item.getImageUrl());
+                } else {
+                    destination.send(message);
+                }
                 sent++;
             } catch (RuntimeException exception) {
                 failed++;
@@ -38,6 +43,27 @@ public class NewsNotificationService {
             }
         }
         return new DeliveryResult(sent, failed);
+    }
+
+    /** One packet can contain several newly saved records without changing their identity. */
+    public DeliveryResult notifyBatch(List<NewsItem> savedItems, NotificationSender destination) {
+        var messages = new java.util.ArrayList<NotificationMessage>();
+        int failed = 0;
+        for (var item : savedItems) {
+            try { messages.add(new NotificationMessage(formatter.format(item), item.getImageUrl())); }
+            catch (RuntimeException exception) {
+                failed++;
+                log.error("Batch formatting failed for saved news: id={}", item.getId(), exception);
+            }
+        }
+        if (messages.isEmpty()) { return new DeliveryResult(0, failed); }
+        try {
+            destination.sendBatch(List.copyOf(messages));
+            return new DeliveryResult(messages.size(), failed);
+        } catch (RuntimeException exception) {
+            log.error("Batch notification failed: newsItems={}", messages.size(), exception);
+            return new DeliveryResult(0, failed + messages.size());
+        }
     }
 
     public record DeliveryResult(int sent, int failed) { }
