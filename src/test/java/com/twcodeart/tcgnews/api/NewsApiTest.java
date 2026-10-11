@@ -78,6 +78,18 @@ class NewsApiTest {
     }
 
     @Test
+    void deliveryStatusReportsDisabledConfigurationWithoutCredentialsOrSending() throws Exception {
+        mvc.perform(get("/api/notifications/status")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.deliveryRevision").value("durable-qq-v1"))
+                .andExpect(jsonPath("$.pollingEnabled").value(false))
+                .andExpect(jsonPath("$.qqConfigured").value(false))
+                .andExpect(jsonPath("$.configurationProblem").value("QQ notifications are disabled"))
+                .andExpect(jsonPath("$.sources").isEmpty())
+                .andExpect(jsonPath("$.accessToken").doesNotExist())
+                .andExpect(jsonPath("$.testGroupId").doesNotExist());
+    }
+
+    @Test
     void returnsStoredNewsNewestFirstAndAcceptsTheGameFilter() throws Exception {
         NewsItem first = repository.saveAndFlush(news("first", "a".repeat(64)));
         NewsItem second = repository.saveAndFlush(news("second", "b".repeat(64)));
@@ -159,8 +171,19 @@ class NewsApiTest {
     void returnsACleanStorageErrorWithoutExposingInternalDetails() throws Exception {
         doThrow(new DataAccessResourceFailureException("Private database connection details"))
                 .when(query).findNews(null);
-        mvc.perform(get("/api/news")).andExpect(status().isServiceUnavailable())
-                .andExpect(content().json("{\"message\":\"News storage is unavailable\"}"));
+        var result = mvc.perform(get("/api/news")).andExpect(status().isServiceUnavailable())
+                .andExpect(content().json("{\"message\":\"News storage is unavailable\"}"))
+                .andExpect(jsonPath("$.errorId").isString()).andReturn();
+        var json = new com.fasterxml.jackson.databind.ObjectMapper().readTree(result.getResponse().getContentAsString());
+        assertThat(json.get("errorId").asText()).isEqualTo(result.getResponse().getHeader("X-Request-ID"));
+    }
+
+    @Test
+    void unexpectedFailureReturnsAnIdWithoutInternalDetails() throws Exception {
+        doThrow(new IllegalStateException("Private server details")).when(query).findNews(null);
+        var response = mvc.perform(get("/api/news")).andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.errorId").isString()).andReturn().getResponse();
+        assertThat(response.getContentAsString()).doesNotContain("Private server details");
     }
 
     private NewsItem news(String title, String hash) {

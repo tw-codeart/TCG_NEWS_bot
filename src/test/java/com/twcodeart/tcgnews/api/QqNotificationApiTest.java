@@ -107,9 +107,12 @@ class QqNotificationApiTest {
         for (int index = 0; index < reasons.length; index++) {
             doThrow(new QqNotificationException(reasons[index], "QQ API test failure"))
                     .when(qqSender).send(any(String.class));
-            mvc.perform(post("/api/notifications/test")).andExpect(status().is(statuses[index]))
+            var response = mvc.perform(post("/api/notifications/test")).andExpect(status().is(statuses[index]))
                     .andExpect(jsonPath("$.attempted").value(1)).andExpect(jsonPath("$.sent").value(0))
-                    .andExpect(jsonPath("$.errors[0].reason").value(reasons[index].name()));
+                    .andExpect(jsonPath("$.errors[0].reason").value(reasons[index].name()))
+                    .andExpect(jsonPath("$.errors[0].errorId").isString()).andReturn().getResponse();
+            var json = new com.fasterxml.jackson.databind.ObjectMapper().readTree(response.getContentAsString());
+            assertThat(json.get("errors").get(0).get("errorId").asText()).isEqualTo(response.getHeader("X-Request-ID"));
         }
     }
 

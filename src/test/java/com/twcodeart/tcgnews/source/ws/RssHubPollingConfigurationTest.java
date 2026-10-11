@@ -17,7 +17,7 @@ class RssHubPollingConfigurationTest {
 
     private final ApplicationContextRunner context = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(ConfigurationPropertiesAutoConfiguration.class))
-            .withUserConfiguration(RssHubProperties.class, RssHubPollingService.class)
+            .withUserConfiguration(RssHubProperties.class, RssHubPollingService.class, RssHubPollingStatus.class)
             .withBean(NewsFetchService.class, () -> mock(NewsFetchService.class));
 
     @Test
@@ -37,7 +37,7 @@ class RssHubPollingConfigurationTest {
                     assertThat(tasks).hasSize(1);
                     var task = (FixedDelayTask) tasks.iterator().next().getTask();
                     assertThat(task.getIntervalDuration()).isEqualTo(Duration.ofMinutes(15));
-                    assertThat(task.getInitialDelayDuration()).isEqualTo(Duration.ofMinutes(15));
+                    assertThat(task.getInitialDelayDuration()).isEqualTo(Duration.ofSeconds(10));
                 });
     }
 

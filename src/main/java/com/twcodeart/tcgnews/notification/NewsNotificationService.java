@@ -67,4 +67,14 @@ public class NewsNotificationService {
     }
 
     public record DeliveryResult(int sent, int failed) { }
+
+    /** Formats every record before sending; the durable caller acknowledges only a complete packet. */
+    public void sendCompleteBatch(List<NewsItem> items, NotificationSender destination) {
+        var messages = items.stream().map(item -> new NotificationMessage(formatter.format(item), item.getImageUrl())).toList();
+        if (destination.acceptsImages()) destination.sendBatch(messages);
+        else {
+            if (messages.size() != 1) throw new IllegalArgumentException("A text delivery must contain one item");
+            destination.send(messages.get(0).text());
+        }
+    }
 }

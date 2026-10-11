@@ -8,6 +8,20 @@ import java.util.List;
 
 public interface NewsItemRepository extends JpaRepository<NewsItem, Long> {
 
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT COALESCE(MAX(n.id), 0) FROM NewsItem n
+            WHERE n.game=:game AND n.category=:category
+            AND LOWER(SUBSTRING(n.sourceUrl,1,LENGTH(:prefix)))=LOWER(:prefix)
+            """)
+    long findLatestQqDeliveryId(Game game, NewsCategory category, String prefix);
+
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT n FROM NewsItem n WHERE n.game=:game AND n.category=:category AND n.id>:afterId
+            AND LOWER(SUBSTRING(n.sourceUrl,1,LENGTH(:prefix)))=LOWER(:prefix) ORDER BY n.id ASC
+            """)
+    List<NewsItem> findQqDeliveryCandidates(Game game, NewsCategory category, String prefix, long afterId,
+                                          org.springframework.data.domain.Pageable page);
+
     boolean existsByContentHash(String contentHash);
 
     List<NewsItem> findByGame(Game game, Sort sort);

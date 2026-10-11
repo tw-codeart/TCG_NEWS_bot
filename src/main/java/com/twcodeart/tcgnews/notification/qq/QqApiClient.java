@@ -23,7 +23,7 @@ final class QqApiClient {
     }
 
     JsonNode call(String action, Map<String, ?> payload) {
-        properties.requireConfigured();
+        properties.requireApiConfigured();
         try {
             var request = client.post().uri(properties.actionUri(action)).contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.APPLICATION_JSON);
@@ -38,7 +38,9 @@ final class QqApiClient {
             if (response == null || !"ok".equals(response.path("status").asText())
                     || !response.path("retcode").isIntegralNumber() || !response.path("retcode").canConvertToInt()
                     || response.path("retcode").intValue() != 0 || response.path("data").isMissingNode()) {
-                throw new QqNotificationException(API_FAILURE, "QQ API did not confirm successful operation");
+                String code = response != null && response.path("retcode").isIntegralNumber()
+                        && response.path("retcode").canConvertToInt() ? Integer.toString(response.path("retcode").intValue()) : "invalid";
+                throw new QqNotificationException(API_FAILURE, "QQ API did not confirm successful operation; retcode=" + code);
             }
             return response.path("data");
         } catch (RestClientResponseException exception) {

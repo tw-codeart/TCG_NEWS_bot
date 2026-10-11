@@ -16,6 +16,10 @@ public class NewsDeduplicationPolicy {
     }
 
     public boolean isDuplicate(NewsItem item) {
+        return isDuplicate(item, repository);
+    }
+
+    public boolean isDuplicate(NewsItem item, NewsItemRepository repository) {
         if (repository.existsByContentHash(item.getContentHash())) {
             return true;
         }

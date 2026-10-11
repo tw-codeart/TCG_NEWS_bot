@@ -30,6 +30,17 @@ class WsRssHubFeedParserTest {
     }
 
     @Test
+    void parsesAllThreeImagesInTheSuppliedEscapedHtmlStructureWithoutConfusingTheNewerSingleImagePost() throws Exception {
+        var items=parser.parse(fixture("ws-rsshub-three-images.xml"));
+        assertThat(items).hasSize(4);
+        var three=items.stream().filter(item -> item.getSourceUrl().endsWith("/2108386969822846981")).toList();
+        assertThat(three).hasSize(3).extracting(NewsItem::getImageUrl).containsExactly(
+                "https://pbs.twimg.com/media/synthetic-a?format=jpg&name=orig",
+                "https://pbs.twimg.com/media/synthetic-b?format=jpg&name=orig",
+                "https://pbs.twimg.com/media/synthetic-c?format=jpg&name=orig");
+    }
+
+    @Test
     void mapsOriginalPostMetadataWithoutGuessingProductOrRevealDate() throws Exception {
         var item = rss().get(0);
         assertThat(item.getGame()).isEqualTo(Game.WEISS_SCHWARZ);

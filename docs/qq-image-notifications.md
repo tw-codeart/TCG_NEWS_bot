@@ -8,7 +8,8 @@ not guarantee that QQ will accept messages or avoid account restrictions.
 
 ## Configuration
 
-QQ remains disabled by default and restricted to its configured test group.
+QQ remains disabled by default. Legacy/manual previews use the configured test
+group; opt-in [group subscriptions](qq-group-subscriptions.md) allow trusted group routing.
 When QQ is enabled, `qq.image-forward-enabled` and `qq.ocr-enabled` default to
 true. Environment variables are `QQ_IMAGE_FORWARD_ENABLED` and `QQ_OCR_ENABLED`.
 Disabling OCR keeps the image and adds a disabled notice. Explicitly disabling
@@ -32,18 +33,19 @@ Failed, empty, malformed or timed-out OCR still permits sending the original ima
 with an explicit fallback. Failed forwards are reported without rolling back saved
 news. Forward nodes use the logged-in bot's identity from `get_login_info`.
 
-Existing first-run suppression, newly-saved-only selection, three-item default and
-five-item maximum remain. Each image keeps its independent record and forward;
-post-wide regrouping is not implemented. Excess notifications remain skipped
-without retries or automatic replay.
+Existing first-run history suppression remains. Automatic image delivery groups
+distinct records into bounded packets, default three attempts with a hard maximum
+of five per fetch. Failed/limited records remain pending for later checks.
+See [automatic delivery](automatic-qq-delivery.md). Manual `/news` preview still
+selects individual records; `/posts` preview selects whole stored posts.
 
 Manual preview uses `POST /api/notifications/news?limit=1`. Fixed smoke messages
 from `POST /api/notifications/test` also omit the old official link.
 
 All HTTP tests use synthetic endpoints and mocked responses. Live Japanese OCR,
 image receipt, merged-forward receipt and laptop installation are not verified.
-Group subscription commands restricted to owners/admins are **Planned** for a
-separate phase and are unavailable in this build.
+Group subscription commands restricted to owners/admins are available as an
+opt-in; see [group subscriptions](qq-group-subscriptions.md).
 
 ## References
 

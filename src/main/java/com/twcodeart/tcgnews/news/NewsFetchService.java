@@ -20,6 +20,7 @@ public class NewsFetchService {
     private final NewsIngestionService ingestion;
     private final NewsNotificationService notifications;
     private final ObjectProvider<RssHubQqNotificationService> rssHubNotifications;
+    private final com.twcodeart.tcgnews.subscription.QqGroupDeliveryService groups;
 
     public NewsFetchService(List<NewsSource> sources, NewsIngestionService ingestion,
                             NewsNotificationService notifications,
@@ -28,6 +29,15 @@ public class NewsFetchService {
         this.ingestion = ingestion;
         this.notifications = notifications;
         this.rssHubNotifications = rssHubNotifications;
+        this.groups=null;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public NewsFetchService(List<NewsSource> sources,NewsIngestionService ingestion,NewsNotificationService notifications,
+            ObjectProvider<RssHubQqNotificationService> rssHubNotifications,
+            ObjectProvider<com.twcodeart.tcgnews.subscription.QqGroupDeliveryService> groups){
+        this.sources=List.copyOf(sources);this.ingestion=ingestion;this.notifications=notifications;
+        this.rssHubNotifications=rssHubNotifications;this.groups=groups.getIfAvailable();
     }
 
     public NewsFetchSummary fetchAll() {
@@ -64,6 +74,8 @@ public class NewsFetchService {
             NewsIngestionService.IngestionResult result;
             boolean ingestionCompleted = false;
             try {
+                if (rssHub != null && rssHub.handles(source.getSourceId())) rssHub.prepareSource(source.getSourceId());
+                if (groups != null && rssHub != null && rssHub.handles(source.getSourceId())) groups.prepare(source.getSourceId());
                 result = ingestion.fetchAndSaveWithSummary(source);
                 ingestionCompleted = true;
                 successfulSources++;
@@ -76,6 +88,11 @@ public class NewsFetchService {
             } catch (NewsSourceException | RuntimeException exception) {
                 log.error("News source failed: source={}", source.getSourceId(), exception);
                 errors.add(new NewsFetchSummary.SourceError(source.getSourceId(), "Source fetch failed"));
+                if (rssHub != null && rssHub.handles(source.getSourceId())) {
+                    if(groups!=null)groups.capture(source.getSourceId(),new NewsIngestionService.IngestionResult(0,List.of(),0),false);
+                    else remainingMessages -= rssHub.notifySavedItems(source.getSourceId(),
+                            new NewsIngestionService.IngestionResult(0, List.of(), 0), false, remainingMessages);
+                }
                 continue;
             }
             fetched += result.fetched();
@@ -84,10 +101,15 @@ public class NewsFetchService {
             unprocessed += result.unprocessed();
             // Persisted records are available even when the source's batch saved only partially.
             if (rssHub != null && rssHub.handles(source.getSourceId())) {
-                remainingMessages -= rssHub.notifySavedItems(source.getSourceId(), result, ingestionCompleted, remainingMessages);
+                if(groups!=null)groups.capture(source.getSourceId(),result,ingestionCompleted);
+                else remainingMessages -= rssHub.notifySavedItems(source.getSourceId(), result, ingestionCompleted, remainingMessages);
             } else {
                 notifications.notifyNewItems(result.savedItems());
             }
+        }
+        if(groups!=null&&rssHub!=null){
+            try{groups.deliver(selectedSources.stream().map(NewsSource::getSourceId).filter(rssHub::handles).toList(),rssHub.notificationLimit());}
+            catch(RuntimeException exception){log.error("Group delivery stopped; saved news retained: errorId={}",com.twcodeart.tcgnews.diagnostics.DiagnosticIds.current(),exception);}
         }
         return new NewsFetchSummary(fetched, saved, duplicates, unprocessed, successfulSources, errors);
     }

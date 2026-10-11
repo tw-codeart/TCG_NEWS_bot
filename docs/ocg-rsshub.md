@@ -54,12 +54,13 @@ QQ notifications. Empty/partial snapshots wait for a complete nonempty baseline.
 An existing WS marker does not initialize OCG. Subsequent duplicates send nothing.
 
 When OCG is enabled, automatic WS and OCG RSSHub notices are grouped into forward
-packets of at most **20 image records**, using the existing formatter and QQ sender.
+packets of at most **50 image records**, using the existing formatter and QQ sender.
 The configured batch limit counts packets, not images: default three, hard maximum
-five **across the whole fetch**. Thirteen new images fit in one packet; forty-five
-fit in three. Packets have at most forty nodes. Failed attempts consume the same
-budget. Records beyond the budget remain saved and are logged as skipped; there
-is no retry queue or later replay. A full default budget can cover sixty images,
+five **across the whole fetch**. Thirteen or forty-five new images fit in one packet.
+Exactly repeated visible post text appears once per packet. Packets have at most
+one hundred nodes (an internal cap, not a claimed QQ limit). Failed attempts consume the same
+budget. Records beyond the budget remain saved and pending for later checks;
+see [automatic delivery](automatic-qq-delivery.md). A full default budget can cover up to 150 records,
 shared between the enabled RSSHub sources.
 
 QQ text omits source URLs and bare homepage links like the supplied
@@ -89,3 +90,20 @@ The game parameter does not enable an unconfigured source or trigger scraping.
 Verification: `mvn test` and `mvn package` pass 123 tests (no failures/errors/skips),
 using local fixtures, in-memory H2 and mocked QQ/RSSHub HTTP. Real OCG RSSHub fetch,
 automatic OCG group delivery and laptop deployment have not been verified.
+
+## Portable Windows enable helper
+
+With the existing durable-delivery bundle installed, copy `enable-ocg.ps1` and
+`enable-ocg.cmd` beside `common.ps1` and `config.env`, then run `enable-ocg.cmd`.
+The helper validates the local RSSHub OCG feed before changing only the OCG
+public enable/route settings. Invalid/unavailable feeds leave the configuration
+unchanged. It does not stop the running WS service or send QQ messages.
+After success, stop Java and restart with `start-auto.cmd`. The delivery status
+endpoint should list both WS and OCG sources. The OCG history baseline remains
+suppressed; new matching announcements are eligible for automatic delivery.
+
+The helper was tested on 2026-10-11 using Windows PowerShell 5.1, a Unicode path,
+mocked RSS responses, invalid/DTD/unavailable feed cases, preserved credentials,
+and repeated enabling. No Java code changed and Maven was not rerun for this
+script-only change. The last Java test/package verification passed 146 tests.
+Live OCG feed contents and real group delivery remain unverified.

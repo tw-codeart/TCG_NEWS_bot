@@ -18,21 +18,21 @@ class RssHubQqNotificationServiceTest {
 
     @Test
     void skipsNotificationsIfBootstrapStateCannotBeReadOrWritten() {
-        var repository = mock(SourceNotificationBootstrapRepository.class);
+        var repository = mock(QqDeliveryStore.class);
         var notifications = mock(NewsNotificationService.class);
         var service = new RssHubQqNotificationService(repository, new RssHubProperties(),
                 mock(ObjectProvider.class), notifications);
         var item = new NewsItem(Game.WEISS_SCHWARZ, NewsCategory.CARD_REVEAL, "今日のカード", null,
                 null, "https://pbs.twimg.com/media/test.png", "https://x.com/wstcg/status/1", "a".repeat(64));
         var result = new NewsIngestionService.IngestionResult(1, List.of(item), 0);
-        when(repository.existsById(WsRssHubNewsSource.SOURCE_ID))
-                .thenThrow(new DataAccessResourceFailureException("Database unavailable"));
-        service.notifySavedItems(result, true);
+        doThrow(new DataAccessResourceFailureException("Database unavailable"))
+                .when(repository).capture(WsRssHubNewsSource.SOURCE_ID, true);
+        service.notifySavedItems(WsRssHubNewsSource.SOURCE_ID, result, true, 3);
         verifyNoInteractions(notifications);
         reset(repository);
         doThrow(new DataAccessResourceFailureException("Database unavailable"))
-                .when(repository).saveAndFlush(any(SourceNotificationBootstrap.class));
-        service.notifySavedItems(result, true);
+                .when(repository).status(WsRssHubNewsSource.SOURCE_ID);
+        service.notifySavedItems(WsRssHubNewsSource.SOURCE_ID, result, true, 3);
         verifyNoInteractions(notifications);
     }
 }

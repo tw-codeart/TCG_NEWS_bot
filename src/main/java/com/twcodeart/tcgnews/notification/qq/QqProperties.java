@@ -14,9 +14,28 @@ public class QqProperties {
     private boolean enabled;
     private boolean imageForwardEnabled = true;
     private boolean ocrEnabled = true;
+    private String ocrProvider = "napcat";
+    private String tesseractExecutable = "";
+    private String tesseractDataDirectory = "";
+    public String getOcrProvider() { return ocrProvider; }
+    public void setOcrProvider(String value) {
+        if (!java.util.Set.of("napcat", "tesseract").contains(value))
+            throw new IllegalArgumentException("qq.ocr-provider must be napcat or tesseract");
+        ocrProvider = value;
+    }
+    public String getTesseractExecutable() { return tesseractExecutable; }
+    public void setTesseractExecutable(String value) { tesseractExecutable = value; }
+    public String getTesseractDataDirectory() { return tesseractDataDirectory; }
+    public void setTesseractDataDirectory(String value) { tesseractDataDirectory = value; }
     private String apiBaseUrl = "http://localhost:3000";
     private String testGroupId = "";
     private String accessToken = "";
+    private boolean groupSubscriptionsEnabled;
+    private String commandSecret="";
+    public boolean isGroupSubscriptionsEnabled(){return groupSubscriptionsEnabled;}
+    public void setGroupSubscriptionsEnabled(boolean value){groupSubscriptionsEnabled=value;}
+    public String getCommandSecret(){return commandSecret;}
+    public void setCommandSecret(String value){commandSecret=value;}
 
     public boolean isImageForwardEnabled() { return imageForwardEnabled; }
     public void setImageForwardEnabled(boolean value) { imageForwardEnabled = value; }
@@ -33,11 +52,14 @@ public class QqProperties {
     public void setAccessToken(String accessToken) { this.accessToken = accessToken; }
 
     public void requireConfigured() {
+        requireApiConfigured();groupId();
+    }
+
+    public void requireApiConfigured() {
         if (!enabled) {
             throw new QqNotificationException(CONFIGURATION, "QQ notifications are disabled");
         }
         actionUri();
-        groupId();
         if (accessToken != null && accessToken.chars().anyMatch(character -> character < 32 || character > 126)) {
             throw new QqNotificationException(CONFIGURATION, "Invalid QQ access-token header value");
         }
@@ -57,7 +79,7 @@ public class QqProperties {
     public URI actionUri() { return actionUri("send_group_msg"); }
 
     public URI actionUri(String action) {
-        if (!java.util.Set.of("send_group_msg", "send_group_forward_msg", "ocr_image", "get_login_info").contains(action)) {
+        if (!java.util.Set.of("send_group_msg", "send_group_forward_msg", "ocr_image", "get_login_info", "get_group_member_info").contains(action)) {
             throw new IllegalArgumentException("Unsupported QQ action");
         }
         try {

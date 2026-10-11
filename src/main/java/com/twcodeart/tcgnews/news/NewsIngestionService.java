@@ -16,10 +16,18 @@ public class NewsIngestionService {
     private static final Logger log = LoggerFactory.getLogger(NewsIngestionService.class);
     private final NewsItemRepository repository;
     private final NewsDeduplicationPolicy deduplicationPolicy;
+    private final com.twcodeart.tcgnews.storage.GameStorage storage;
 
     public NewsIngestionService(NewsItemRepository repository, NewsDeduplicationPolicy deduplicationPolicy) {
+        this.repository = repository; this.deduplicationPolicy = deduplicationPolicy; this.storage = null;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public NewsIngestionService(NewsItemRepository repository, NewsDeduplicationPolicy deduplicationPolicy,
+            org.springframework.beans.factory.ObjectProvider<com.twcodeart.tcgnews.storage.GameStorage> storage) {
         this.repository = repository;
         this.deduplicationPolicy = deduplicationPolicy;
+        this.storage = storage.getIfAvailable();
     }
 
     /**
@@ -31,11 +39,26 @@ public class NewsIngestionService {
     }
 
     public IngestionResult fetchAndSaveWithSummary(NewsSource source) throws NewsSourceException {
+        if (storage != null) storage.requireReady();
         List<NewsItem> fetched = source.fetchNews();
         List<NewsItem> saved = new ArrayList<>();
         int duplicates = 0;
         try {
             for (NewsItem item : fetched) {
+                if (storage != null && storage.isSeparated()) {
+                    if (item.getGame() != source.getGame()) throw new IllegalArgumentException("Source returned a different game's news");
+                    try {
+                        NewsItem stored = storage.execute(item.getGame(), repositories ->
+                                deduplicationPolicy.isDuplicate(item, repositories.news()) ? null : repositories.news().saveAndFlush(item));
+                        if (stored == null) duplicates++;
+                        else saved.add(stored);
+                    } catch (RuntimeException exception) {
+                        // Check in a fresh transaction; a constraint error may have rolled the save transaction back.
+                        if (storage.execute(item.getGame(), repositories -> deduplicationPolicy.isDuplicate(item, repositories.news()))) duplicates++;
+                        else throw exception;
+                    }
+                    continue;
+                }
                 String hash = item.getContentHash();
                 if (deduplicationPolicy.isDuplicate(item)) {
                     duplicates++;

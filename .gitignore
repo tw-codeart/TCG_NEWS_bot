@@ -4,6 +4,14 @@ data/
 *.iml
 .vscode/
 *.log
+logs/
+config.env
+config.env.*
+napcat-http-client.local.json
+operations.local.json
+operations.stop
+operations-status.json
+operations-status.json.*
 .DS_Store
 Thumbs.db
 .env

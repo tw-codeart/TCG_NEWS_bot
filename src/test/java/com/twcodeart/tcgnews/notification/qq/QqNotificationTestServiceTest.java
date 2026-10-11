@@ -80,8 +80,10 @@ class QqNotificationTestServiceTest {
         when(query.findLatestNews(3)).thenReturn(List.of(news(0)));
         when(formatter.format(any(NewsItem.class))).thenThrow(new IllegalStateException("Internal details"));
         var result = service.sendStoredNews(3);
-        assertThat(result.errors()).containsExactly(new QqNotificationTestService.Error(
-                QqNotificationException.Reason.FORMATTING_FAILURE, "Notification formatting failed"));
+        assertThat(result.errors()).hasSize(1);
+        assertThat(result.errors().get(0).reason()).isEqualTo(QqNotificationException.Reason.FORMATTING_FAILURE);
+        assertThat(result.errors().get(0).message()).isEqualTo("Notification formatting failed");
+        assertThat(result.errors().get(0).errorId()).isNotBlank();
         verifyNoInteractions(sender);
     }
 

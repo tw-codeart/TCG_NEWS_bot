@@ -25,11 +25,14 @@ import static org.mockito.Mockito.*;
 
 @DataJpaTest(properties={"rsshub.enabled=true","rsshub.ocg-enabled=true","rsshub.base-url=https://rsshub.example","qq.enabled=true"})
 @Import({NewsIngestionService.class, NewsDeduplicationPolicy.class, NewsNotificationService.class,
-        PlainTextNotificationFormatter.class, ConsoleNotificationSender.class, RssHubProperties.class, RssHubQqNotificationService.class})
+        PlainTextNotificationFormatter.class, ConsoleNotificationSender.class, RssHubProperties.class,
+        RssHubQqNotificationService.class, QqDeliveryStore.class, com.twcodeart.tcgnews.storage.GameStorage.class})
 @Transactional(propagation=Propagation.NOT_SUPPORTED)
 class OcgNotificationPipelineTest {
     @Autowired private NewsItemRepository news;
     @Autowired private SourceNotificationBootstrapRepository bootstraps;
+    @Autowired private QqDeliveryCursorRepository cursors;
+    @Autowired private QqNewsDeliveryRepository deliveries;
     @Autowired private NewsIngestionService ingestion;
     @Autowired private NewsNotificationService notifications;
     @Autowired private ObjectProvider<RssHubQqNotificationService> rss;
@@ -39,7 +42,9 @@ class OcgNotificationPipelineTest {
     private OcgRssHubNewsSource source;
 
     @BeforeEach void reset() {
+        deliveries.deleteAll(); cursors.deleteAll();
         news.deleteAll(); bootstraps.deleteAll(); properties.setNotificationBatchLimit(3);
+        when(qq.acceptsImages()).thenReturn(true);
         properties.setOcgEnabled(true);
         client=mock(RssHubFeedClient.class); source=new OcgRssHubNewsSource(client,new OcgRssHubFeedParser());
     }
@@ -56,21 +61,22 @@ class OcgNotificationPipelineTest {
         verify(qq,times(1)).sendBatch(anyList());
         assertThat(news.count()).isEqualTo(14);
     }
-    @Test void splitsFortyFiveImagesIntoThreePacketsWithoutDroppingImages() throws Exception {
+    @Test void combinesFortyFiveImagesInOnePacketWithoutDroppingImages() throws Exception {
         bootstrap(); when(client.fetch()).thenReturn(feed(200,45));
         assertThat(fetch(source).saved()).isEqualTo(45);
         var packets=org.mockito.ArgumentCaptor.forClass(List.class);
-        verify(qq,times(3)).sendBatch(packets.capture());
-        assertThat(packets.getAllValues()).extracting(List::size).containsExactly(20,20,5);
+        verify(qq,times(1)).sendBatch(packets.capture());
+        assertThat(packets.getAllValues()).extracting(List::size).containsExactly(45);
     }
-    @Test void failedForwardLeavesNewRecordsCommittedAndDoesNotRetryTheDuplicateFetch() throws Exception {
+    @Test void failedForwardLeavesNewRecordsCommittedAndRetriesAfterRecovery() throws Exception {
         bootstrap(); when(client.fetch()).thenReturn(feed(200,13));
         doThrow(new QqNotificationException(QqNotificationException.Reason.UNAVAILABLE,"QQ API unavailable"))
                 .when(qq).sendBatch(anyList());
         assertThat(fetch(source).saved()).isEqualTo(13);
         assertThat(news.count()).isEqualTo(14);
+        doNothing().when(qq).sendBatch(anyList());
         assertThat(fetch(source).saved()).isZero();
-        verify(qq,times(1)).sendBatch(anyList());
+        verify(qq,times(2)).sendBatch(anyList());
     }
     @Test void ocgFailureDoesNotPreventAnUnrelatedWebsiteSourceFromSaving() throws Exception {
         when(client.fetch()).thenThrow(new IOException("Feed unavailable"));
@@ -104,12 +110,12 @@ class OcgNotificationPipelineTest {
         bootstrap();
         bootstraps.saveAndFlush(new SourceNotificationBootstrap(WsRssHubNewsSource.SOURCE_ID));
         when(client.fetch()).thenReturn(feed(200,13));
-        var ws=wsSource(41);
-        assertThat(fetch(ws,source).saved()).isEqualTo(54);
+        var ws=wsSource(101);
+        assertThat(fetch(ws,source).saved()).isEqualTo(114);
         verify(qq,times(3)).sendBatch(anyList());
-        assertThat(news.count()).isEqualTo(55);
+        assertThat(news.count()).isEqualTo(115);
         assertThat(fetch(ws,source).saved()).isZero();
-        verify(qq,times(3)).sendBatch(anyList());
+        verify(qq,times(4)).sendBatch(anyList());
     }
     private NewsSource wsSource(int count) throws Exception {
         var ws=mock(NewsSource.class);

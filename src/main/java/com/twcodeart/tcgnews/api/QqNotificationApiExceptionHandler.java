@@ -1,5 +1,7 @@
 package com.twcodeart.tcgnews.api;
 
+import com.twcodeart.tcgnews.diagnostics.DiagnosticIds;
+
 import com.twcodeart.tcgnews.notification.qq.QqNotificationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,7 +12,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-@RestControllerAdvice(assignableTypes = QqNotificationController.class)
+@org.springframework.core.annotation.Order(0)
+@RestControllerAdvice(assignableTypes = {QqNotificationController.class, QqDeliveryStatusController.class,QqEventController.class})
 public class QqNotificationApiExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(QqNotificationApiExceptionHandler.class);
@@ -26,8 +29,9 @@ public class QqNotificationApiExceptionHandler {
 
     @ExceptionHandler(QqNotificationException.class)
     public ResponseEntity<ApiError> unavailable(QqNotificationException exception) {
-        log.warn("QQ smoke request rejected: reason={}", exception.getReason());
-        return ResponseEntity.status(status(exception.getReason())).body(new ApiError(exception.getMessage()));
+        String id = DiagnosticIds.current();
+        log.warn("QQ smoke request rejected: errorId={}, reason={}", id, exception.getReason(), exception);
+        return ResponseEntity.status(status(exception.getReason())).body(new ApiError(exception.getMessage(), id));
     }
 
     @ExceptionHandler({IllegalArgumentException.class, MethodArgumentTypeMismatchException.class})
@@ -37,14 +41,17 @@ public class QqNotificationApiExceptionHandler {
                 && exception.getMessage().startsWith("Selected posts exceed five forward packets")) {
             message="Selected posts exceed five forward packets; lower the post limit";
         }
-        return ResponseEntity.badRequest().body(new ApiError(message));
+        String id = DiagnosticIds.current();
+        log.warn("Invalid QQ preview request: errorId={}", id);
+        return ResponseEntity.badRequest().body(new ApiError(message, id));
     }
 
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<ApiError> storageUnavailable(DataAccessException exception) {
-        log.error("QQ smoke news query failed", exception);
-        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(new ApiError("News storage is unavailable"));
+        String id = DiagnosticIds.current();
+        log.error("QQ smoke news query failed: errorId={}", id, exception);
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(new ApiError("News storage is unavailable", id));
     }
 
-    public record ApiError(String message) { }
+    public record ApiError(String message, String errorId) { }
 }

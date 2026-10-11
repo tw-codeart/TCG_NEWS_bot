@@ -1,5 +1,7 @@
 package com.twcodeart.tcgnews.notification.qq;
 
+import com.twcodeart.tcgnews.diagnostics.DiagnosticIds;
+
 import com.twcodeart.tcgnews.news.NewsQueryService;
 import com.twcodeart.tcgnews.notification.NotificationFormatter;
 import com.twcodeart.tcgnews.notification.NotificationSender;
@@ -71,15 +73,18 @@ public class QqNotificationTestService {
     }
 
     public PostResult sendStoredPosts(int limit, com.twcodeart.tcgnews.news.Game game) {
+        return sendStoredPosts(limit,game,null);
+    }
+
+    public PostResult sendStoredPosts(int limit, com.twcodeart.tcgnews.news.Game game,String postId) {
         if (limit<1 || limit>5 || game==null) throw new IllegalArgumentException("Use a supported game and 1 to 5 posts");
-        NotificationSender sender = configuredSender();
-        var posts=query.findLatestXPosts(game,limit);
-        var packets=new java.util.ArrayList<java.util.List<com.twcodeart.tcgnews.news.NewsItem>>();
-        for (var post:posts) {
-            for(int start=0;start<post.size();start+=QqNotificationSender.MAX_FORWARD_ITEMS) {
-                packets.add(post.subList(start,Math.min(start+QqNotificationSender.MAX_FORWARD_ITEMS,post.size())));
-            }
+        if(postId!=null && (limit!=1 || !postId.matches("[1-9][0-9]{0,19}"))) {
+            throw new IllegalArgumentException("postId must be a numeric X post ID and limit must be 1");
         }
+        NotificationSender sender = configuredSender();
+        var posts=postId==null ? query.findLatestXPosts(game,limit) : query.findXPost(game,postId);
+        var packets=com.twcodeart.tcgnews.notification.NewsForwardPackets.plan(
+                posts.stream().flatMap(List::stream).toList(),QqNotificationSender.MAX_FORWARD_ITEMS);
         if(packets.size()>5) throw new IllegalArgumentException("Selected posts exceed five forward packets; lower the post limit");
         int images=(int)posts.stream().flatMap(List::stream)
                 .filter(item -> item.getImageUrl()!=null && !item.getImageUrl().isBlank()).count();
@@ -95,8 +100,9 @@ public class QqNotificationTestService {
                 }
                 sender.sendBatch(List.copyOf(messages)); sent++;
             } catch(QqNotificationException exception) {
-                log.warn("QQ post preview failed: game={}, reason={}",game,exception.getReason());
-                return new PostResult(posts.size(),images,sent+1,sent,List.of(new Error(exception.getReason(),exception.getMessage())));
+                String id = DiagnosticIds.current();
+                log.warn("QQ post preview failed: errorId={}, game={}, reason={}",id,game,exception.getReason(),exception);
+                return new PostResult(posts.size(),images,sent+1,sent,List.of(new Error(exception.getReason(),exception.getMessage(),id)));
             }
         }
         return new PostResult(posts.size(),images,sent,sent,List.of());
@@ -112,11 +118,12 @@ public class QqNotificationTestService {
     }
 
     private Result failure(int attempted, int sent, QqNotificationException exception, Long newsId) {
-        log.warn("QQ smoke notification failed: newsId={}, reason={}", newsId, exception.getReason());
-        return new Result(attempted, sent, List.of(new Error(exception.getReason(), exception.getMessage())));
+        String id = DiagnosticIds.current();
+        log.warn("QQ smoke notification failed: errorId={}, newsId={}, reason={}", id, newsId, exception.getReason(),exception);
+        return new Result(attempted, sent, List.of(new Error(exception.getReason(), exception.getMessage(),id)));
     }
 
-    public record Error(QqNotificationException.Reason reason, String message) { }
+    public record Error(QqNotificationException.Reason reason, String message, String errorId) { }
 
     public record PostResult(int posts,int images,int attempted,int sent,List<Error> errors) {
         public PostResult { errors=List.copyOf(errors); }

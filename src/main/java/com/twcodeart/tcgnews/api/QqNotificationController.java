@@ -36,9 +36,10 @@ public class QqNotificationController {
     public ResponseEntity<QqNotificationTestService.PostResult> storedPosts(
             @RequestParam(defaultValue="1") int limit,
             @RequestParam com.twcodeart.tcgnews.news.Game game,
+            @RequestParam(required=false) String postId,
             @RequestParam Map<String,String> parameters, @RequestBody(required=false) String body) {
-        validateRequest(parameters,body,Set.of("limit","game"));
-        var result=service.sendStoredPosts(limit,game);
+        validateRequest(parameters,body,Set.of("limit","game","postId"));
+        var result=service.sendStoredPosts(limit,game,postId);
         return ResponseEntity.status(result.errors().isEmpty() ? org.springframework.http.HttpStatus.OK
                 : QqNotificationApiExceptionHandler.status(result.errors().get(0).reason())).body(result);
     }

@@ -1,9 +1,81 @@
 # TCG News Bot
 
+**Operations verification (2026-10-12):** `mvn test` and `mvn package` each passed
+184 tests. Windows PowerShell 5.1 checks covered offline/recovery detection,
+duplicate supervisor rejection, owned-worker restart/shutdown, Unicode paths,
+RSSHub log redaction/rotation and mocked logon-task construction. Packaged Java
+with local RSS/QQ mocks retained per-group stamps and retried only failed delivery
+after restart with retention enabled. No real logon task or QQ delivery was tested
+in this phase; local Tesseract accuracy remains unverified.
+
+Windows single-entry startup, owned Java/RSSHub worker restarts, local health
+alerts, opt-in user logon tasks, safe command-marker retention and optional local
+Japanese Tesseract OCR are available. See [Windows operations](docs/windows-operations.md).
+Real notebook startup, NapCat relogin, long-running group receipt and Japanese
+card OCR accuracy still require live verification.
+
+**Group subscription verification (2026-10-12):** `mvn test` and `mvn package`
+each passed 172 tests. Opt-in signed group commands let verified owners/admins
+subscribe/cancel WS or OCG, with per-group queues and send stamps. Local packaged
+RSS/QQ mocks verified permissions, callback deduplication and restart retry of
+only a failed group. Real group commands and notebook setup remain unverified.
+See [QQ group subscriptions](docs/qq-group-subscriptions.md).
+
+QQ forward packets now show each exactly repeated visible post body once while
+retaining every image record. Automatic forwarding combines eligible posts per
+game; manual `/posts?limit=...` previews use the same packet planner. The internal
+packet cap is 50 records, with excess retained in the existing pending queue.
+See [compact forwards](docs/compact-forwards.md).
+
+**Compact forward verification (2026-10-11):** `mvn test` and `mvn package`
+each passed 157 tests. Packaged Java with local RSS/QQ mocks merged two WS posts
+(four images) and two OCG posts (five images) into one packet per game, displayed
+repeated text once, merged a two-post manual preview into one packet, and retained
+successful-send state across restart. No real large-packet QQ delivery was tested.
+
+**Separate storage verification (2026-10-11):** `mvn test` and `mvn package`
+each passed 153 tests. Opt-in WS/OCG H2 files preserve legacy news and delivery
+stamps; migration backs up the legacy file and resumes interrupted copies.
+The packaged application was checked with local RSS/QQ mocks: migrated WS send
+stamps were retained, and new WS/OCG images were delivered from separate stores.
+Forced termination and restart retained new rows/send stamps without replay after
+the immediate log-flush fix.
+See [separate game storage](docs/separated-game-storage.md). Real notebook/group
+migration and delivery have not been performed for this change.
+
+**Automatic QQ delivery verification (2026-10-11):** `mvn test` and `mvn package`
+each passed 146 tests. Packaged Java was tested against local RSS/OneBot mocks
+with a file H2 database in a Chinese-named directory: scheduled history suppression,
+three newly saved image records, failed delivery persistence, and automatic recovery
+after restart with zero newly saved rows all passed. Windows PowerShell 5.1 tested
+launcher parsing, failed preflight safety and credential-preserving config updates.
+No real QQ group delivery or notebook deployment was performed in this check.
+See [automatic QQ delivery](docs/automatic-qq-delivery.md).
+
+UTF-8 rolling runtime/error logs, correlated API error IDs and Windows
+PowerShell 5.1 launcher templates are available; see [file logging](docs/file-logging.md).
+Separate game database files and administrator group subscription commands are available as opt-ins.
+
+**Logging verification (2026-10-10):** `mvn test` and `mvn package` each passed
+139 tests. The packaged application was checked in a Chinese-named directory:
+a disabled QQ request returned 503 and its error ID appeared in both log files.
+Windows PowerShell 5.1 parsed the launchers and loaded config in a Unicode path.
+No live QQ delivery or notebook deployment was performed for this change.
+
 A Java portfolio project for aggregating official trading card game news,
 starting with Japanese Weiß Schwarz.
 
 ## Current status: WS collection, optional OCG RSSHub announcements, and bounded QQ notifications
+
+**Native enum/storage fix verification (2026-10-10):** `mvn test` and `mvn package`
+pass 134 tests. A populated legacy WS-only H2 native ENUM reproduced the supplied
+OCG 503; the rebuilt JAR upgrades it without losing WS records and then returns 200.
+A mock OneBot HTTP check receives all three images from an exact stored-post preview.
+The supplied WS XML parses as eight matching posts/20 images: its newest post has
+one image, while the previous post has three. Optional numeric `postId` selects
+the latter directly. API revision is `post-preview-v2`. Laptop/group verification
+and Japanese OCR accuracy remain pending.
+See [storage fix and exact post selection](docs/h2-enum-post-selection-fix.md).
 
 **Whole-post preview verification (2026-10-10):** `mvn test` and `mvn package`
 pass 130 tests. The legacy one-record preview can show only one image; the new
@@ -21,8 +93,8 @@ user-supplied `収録カード公開`, excluding explicit reprints and ordinary 
 introductions. It shares ingestion/deduplication, has a separate history baseline,
 and can package thirteen new images in one merged forward. With OCG enabled,
 WS/OCG automatic RSSHub notices share a three-packet default/five-packet maximum,
-up to twenty image records per packet. Excess records are stored but skipped,
-without replay. Text filtering cannot prove card novelty; live OCG feed access,
+up to fifty image records per packet. Excess records now remain pending for later
+checks. Text filtering cannot prove card novelty; live OCG feed access,
 group receipt and Japanese OCR accuracy remain unverified.
 See [OCG configuration and limitations](docs/ocg-rsshub.md).
 
@@ -373,78 +445,41 @@ media completeness, route support, and X access depend on the external instance.
 
 ## RSSHub-to-QQ notification scope
 
-`POST /api/fetch` still uses `NewsIngestionService` and the centralized exact
-deduplication policy for every source. For the WS RSSHub source, its result's
-`savedItems()` is passed to `RssHubQqNotificationService`; existing rows and
-duplicates are never selected for automatic sending. The same
-`NewsNotificationService` formats each selected item with `NotificationFormatter`
-and passes the returned string to the existing `QqNotificationSender`.
-No parser, formatting, or deduplication logic is duplicated in the sender.
+All sources still share the central ingestion and exact deduplication services.
+WS/OCG official X records use separate source baselines and delivery cursors.
+The first complete nonempty snapshot is saved without historical flooding.
+On upgrade, existing saved records are not automatically replayed.
 
-The first successfully persisted nonempty RSSHub batch is a history baseline:
-all new records are saved, but zero QQ messages are attempted. Completion is
-stored under the stable source ID in `source_notification_bootstraps`, so a
-recreated notifier or subsequent process start uses the same database marker.
-This marker is source initialization state, not per-message delivery status.
-An empty feed or partially failed ingestion does not complete initialization.
-If checking or saving the marker fails, messages are suppressed and the failure
-is logged. A batch of existing duplicates can complete initialization as well.
-This deliberately suppresses all entries in the first snapshot, including any
-recent posts in it; no date-based guess is made about what counts as history.
+After initialization, new records are captured in a durable QQ delivery queue.
+Disabled QQ, failed attempts and excess records remain pending. Later fetches
+can deliver pending records even when no new records are saved, or RSSHub fails.
+Only confirmed successful packets are acknowledged. Multi-image posts retain
+their distinct image records and reuse the existing formatter/QQ transport.
+The default shared cap is three attempted packets per fetch, hard maximum five,
+with at most fifty image records per packet. Text mode counts one record per
+attempt. The website pipeline continues to notify on the console.
 
-Subsequent manual fetches attempt at most `rsshub.notification-batch-limit`
-newly saved RSSHub records, default 3. `RSSHUB_NOTIFICATION_BATCH_LIMIT` overrides
-it; values outside 1–5 reject startup configuration. The cap counts attempted
-messages, including failed attempts, and uses the parser's existing item order.
-Different images from one post count separately. Extra records stay saved but
-are **skipped**, not queued/deferred: later fetches identify them as duplicates
-and do not resend them. Records saved while QQ is disabled are also not replayed.
-
-Logs report `bootstrapSkipped`, or normal-batch `saved`, `attempted`, `sent`,
-`failed`, and `limitSkipped` counts. The REST fetch summary retains its existing
-collection/persistence fields; callers must inspect logs for notification results.
-QQ failures do not undo committed news, and later messages within the attempt
-cap continue. RSSHub retrieval failures remain isolated from website sources.
-Original text, publication metadata, source URL, and individual image URLs are
-preserved by the existing parser. QQ contains the original X URL and image links
-from the formatter; image bytes and SAMPLE/watermarks are not modified.
-
-Enable `RSSHUB_ENABLED`, configure `RSSHUB_BASE_URL`, and enable/configure QQ as
-documented below, then restart the Java application and use `POST /api/fetch`.
-The first nonempty fetch initializes history; later newly discovered records can
-be notified. Deleting the marker resets history initialization. Deleting news
-while retaining the marker can make old feed entries newly saved again, subject
-to the cap. Live multi-process concurrency and file-database schema upgrades
-have not been separately verified. Optional polling is described below;
-no retries, delivery queue, fuzzy deduplication,
-translation or additional game was introduced in that integration phase;
-OCR support was added later as described above.
-
-The live manual verification above supersedes the earlier unverified-feed status.
-The QQ API acknowledged a stored RSSHub smoke message; automatic sending of a
-newly published post is still unverified.
+Read-only `GET /api/notifications/status` reports public settings, recent polling,
+per-source baseline, pending/sent counts and recent error IDs. See
+[automatic QQ delivery](docs/automatic-qq-delivery.md) for setup and limitations.
+There is no exactly-once guarantee: ambiguous transport success or a crash before
+saving the acknowledgement may cause a retry to duplicate a packet.
 
 ## Optional periodic RSSHub checks
 
-Set `RSSHUB_POLLING_ENABLED=true` before restarting Java to enable periodic
-checks. `RSSHUB_ENABLED=true` and a working RSSHub base URL are also required.
-`RSSHUB_POLLING_INTERVAL=PT5M` specifies five minutes; `PT15M` specifies fifteen.
-Intervals below one minute are rejected. This changes no group IDs or credentials.
+Enable `RSSHUB_ENABLED` and `RSSHUB_POLLING_ENABLED`, configure RSSHub and QQ,
+then restart Java. `RSSHUB_POLLING_INTERVAL=PT5M` selects a five-minute delay;
+intervals below one minute are rejected. The first check runs ten seconds after
+startup. Later checks wait the configured delay after completion. WS is selected,
+and the optional OCG source joins when enabled. Website sources are not scraped
+on timer ticks. Manual and scheduled fetches share the application service lock.
 
-`RssHubPollingService` uses Spring `@Scheduled` with a fixed delay: the first
-check waits one configured interval after startup, and later checks wait that
-interval after the previous check finishes. Only `ws-jp-rsshub-card-reveals` is
-selected; the official website sources are not scraped on every timer tick.
-Manual and scheduled fetches share the same service lock, preventing overlapping
-collection in this application instance. Existing save/deduplication, history
-bootstrap, formatter, and QQ batch limits are reused. A failed check is logged;
-later scheduled checks continue.
-
-This is polling, not an X push subscription. Detection can be delayed by the
-configured interval, request duration, and RSSHub's own cache/fetch behavior.
-Java, RSSHub, and NapCat must remain running and the computer must remain awake
-for local checks to continue. Nothing runs while Java is stopped. Excess records
-still follow the existing skip policy; no retry queue or catch-up delivery is added.
+Polling is not instant X push. Detection depends on request duration, feed cache
+and the selected interval. Java, RSSHub and NapCat must stay running, with the
+laptop awake. No new matching post means no new notification. Saved pending
+records can still be retried. Windows portable users can opt in with
+`start-auto.cmd`, which checks RSSHub/NapCat, preserves secrets, enables the public
+switches and starts Java. Repository defaults remain disabled.
 
 ## News deduplication scope
 
@@ -568,9 +603,9 @@ Notification processing happens after persistence, without a surrounding batch
 transaction. Formatting or sending failures are logged per record with its ID,
 source URL, and cause; processing continues with later records. These failures
 do not undo saved news or alter the API's fetch/save statistics. The API summary
-does not report notification delivery status. Delivery is synchronous and best
-effort: there is no retry, durable queue, delivery tracking, or replay on repeated
-fetches. A process interruption between saving and sending can lose a message.
+does not report notification delivery status. Website console delivery is synchronous
+and best effort, with no durable console queue. RSSHub QQ delivery now uses the
+durable queue described above and has a separate status endpoint.
 The website fetch pipeline continues to use the console sender. Enabled RSSHub
 items use the separate guarded QQ path above. The manual QQ endpoints below do
 not call this fetch flow.
@@ -646,8 +681,9 @@ mode, metadata and the original image plus unverified OCR text form one merged
 forward per news item; visible text omits links while stored source URLs remain.
 NapCat performs runtime image retrieval and Windows OCR. No image is altered or
 permanently stored by Java. OCR errors still allow image delivery with a notice.
-Multi-group delivery, retries, persistent delivery status and translation are not
-implemented. The user confirmed the earlier live plain-text smoke test; current
+Multi-group delivery is available in opt-in subscription mode; translation remains planned. Automatic RSSHub QQ
+delivery now persists pending state and retries on later checks. The user confirmed
+the earlier live plain-text smoke test; current
 image/forward receipt and Japanese OCR accuracy remain unverified. See the
 [configuration and limitations](docs/qq-image-notifications.md).
 
@@ -719,7 +755,10 @@ last confirmed 96-test Maven result are unchanged by this packaging-only phase.
 
 `CardTextExtractor` now has a NapCat Windows OCR implementation.
 `TranslationService` remains a future extension point.
-Group subscription commands restricted to owners/admins are **Planned**.
+Owner/admin group subscription commands are available as an opt-in. Windows logon
+startup, owned-worker supervision/local alerts, command-marker retention and an
+optional Japanese Tesseract provider are implemented. News/stamp pruning,
+pre-login service deployment and validated Japanese effect extraction remain **Planned**.
 Chinese translation, Discord delivery, OCG website sources and Yu-Gi-Oh! TCG support are future
 work. Manual QQ smoke tests and RSSHub notifications during manual or enabled
 periodic checks and unverified OCR/image forwarding are available as described

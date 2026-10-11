@@ -27,14 +27,30 @@ rsshub:
   polling-enabled: ${RSSHUB_POLLING_ENABLED:false}
   polling-interval: ${RSSHUB_POLLING_INTERVAL:PT5M}
 
+storage:
+  separated-enabled: ${GAME_STORAGE_SEPARATED_ENABLED:false}
+  ws-url: jdbc:h2:file:./data/ws-news
+  ocg-url: jdbc:h2:file:./data/ocg-news
+  backup-directory: ./data/backups
+
 logging:
   charset:
     console: UTF-8
 
 qq:
+  group-subscriptions-enabled: ${QQ_GROUP_SUBSCRIPTIONS_ENABLED:false}
+  command-secret: ${QQ_COMMAND_SECRET:}
   image-forward-enabled: ${QQ_IMAGE_FORWARD_ENABLED:true}
   ocr-enabled: ${QQ_OCR_ENABLED:true}
   enabled: ${QQ_ENABLED:false}
   api-base-url: ${QQ_API_BASE_URL:http://localhost:3000}
   test-group-id: ${QQ_TEST_GROUP_ID:}
   access-token: ${QQ_ACCESS_TOKEN:}
+  ocr-provider: ${QQ_OCR_PROVIDER:napcat}
+  tesseract-executable: ${TESSERACT_EXECUTABLE:}
+  tesseract-data-directory: ${TESSERACT_DATA_DIRECTORY:}
+
+bot:
+  retention:
+    enabled: ${BOT_RETENTION_ENABLED:false}
+    command-days: ${BOT_COMMAND_RETENTION_DAYS:30}

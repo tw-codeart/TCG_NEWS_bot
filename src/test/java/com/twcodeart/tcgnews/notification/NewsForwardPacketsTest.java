@@ -17,4 +17,13 @@ class NewsForwardPacketsTest {
                 "今日のカード",null,null,"https://pbs.twimg.com/media/"+id+"-"+n+".png",
                 "https://x.com/wstcg/status/"+id,String.format("%064x",id*100+n))).toList();
     }
+
+    @Test void mergesSeveralPostsInOnePacketAndSplitsOnlyAtTheBoundedCapacity() {
+        var items=new java.util.ArrayList<NewsItem>();
+        items.addAll(post(1,13));items.addAll(post(2,13));items.addAll(post(3,19));
+        assertThat(NewsForwardPackets.plan(items,50)).extracting(List::size).containsExactly(45);
+        items.addAll(post(4,10));
+        assertThat(NewsForwardPackets.plan(items,50)).extracting(List::size).containsExactly(45,10);
+        assertThat(NewsForwardPackets.plan(items,50).stream().flatMap(List::stream).toList()).hasSize(55);
+    }
 }
