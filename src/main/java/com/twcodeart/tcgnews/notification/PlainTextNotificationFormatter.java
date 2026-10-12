@@ -43,6 +43,7 @@ public class PlainTextNotificationFormatter implements NotificationFormatter {
         }
         // The model requires sourceUrl; optional image URLs are links, never fetched.
         sections.add("Official source:\n" + newsItem.getSourceUrl().strip());
+        if(newsItem.getArticleUrl()!=null&&!newsItem.getArticleUrl().isBlank())sections.add("Article:\n"+newsItem.getArticleUrl().strip());
         if (hasText(newsItem.getImageUrl())) {
             sections.add("Image:\n" + newsItem.getImageUrl().strip());
         }

@@ -32,18 +32,21 @@ public class QqDeliveryStatusController {
         String problem = null;
         try { qq.requireConfigured(); }
         catch (QqNotificationException exception) { problem = exception.getMessage(); }
-        var rows = sources.stream().map(NewsSource::getSourceId)
-                .filter(id -> WsRssHubNewsSource.SOURCE_ID.equals(id) || OcgRssHubNewsSource.SOURCE_ID.equals(id))
-                .map(id -> qq.isGroupSubscriptionsEnabled()?subscriptions.status(com.twcodeart.tcgnews.subscription.QqNewsTopics.game(id)):store.status(id)).toList();
+        var ids=sources.stream().map(NewsSource::getSourceId)
+                .filter(com.twcodeart.tcgnews.notification.RssHubNotificationSources::supports).toList();
+        var rows=qq.isGroupSubscriptionsEnabled()?ids.stream().map(com.twcodeart.tcgnews.subscription.QqNewsTopics::game)
+                .distinct().map(subscriptions::status).toList():ids.stream().map(store::status).toList();
+        var baselines=ids.stream().map(store::status).map(value->new Baseline(value.sourceId(),value.bootstrapComplete(),value.cursorInitialized())).toList();
         boolean enabled = environment.getProperty("rsshub.enabled", Boolean.class, false)
                 && environment.getProperty("rsshub.polling-enabled", Boolean.class, false);
         var groupCounts=qq.isGroupSubscriptionsEnabled()?rows.stream().map(row -> new GroupCount(row.sourceId(),
                 subscriptions.groupCount(com.twcodeart.tcgnews.subscription.QqNewsTopics.game(row.sourceId())))).toList():List.<GroupCount>of();
         return new Status("durable-qq-v1", enabled, qq.isEnabled(), problem == null, problem, polling.snapshot(), rows,
-                qq.isGroupSubscriptionsEnabled(),groupCounts);
+                qq.isGroupSubscriptionsEnabled(),groupCounts,baselines);
     }
     public record Status(String deliveryRevision, boolean pollingEnabled, boolean qqEnabled, boolean qqConfigured,
                           String configurationProblem, RssHubPollingStatus.Snapshot polling,
-                          List<QqDeliveryStore.SourceStatus> sources,boolean groupSubscriptionsEnabled,List<GroupCount> groupCounts) { }
+                          List<QqDeliveryStore.SourceStatus> sources,boolean groupSubscriptionsEnabled,List<GroupCount> groupCounts,List<Baseline> baselines) { }
+    public record Baseline(String sourceId,boolean bootstrapComplete,boolean cursorInitialized){ }
     public record GroupCount(String sourceId,long activeGroups){ }
 }

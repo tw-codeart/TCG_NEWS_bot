@@ -14,6 +14,19 @@ public class RssHubProperties {
 
     private String baseUrl;
     private boolean ocgEnabled;
+    private boolean articleBrowserEnabled;
+    private String articleBrowserExecutable="";
+    public boolean isArticleBrowserEnabled(){return articleBrowserEnabled;}
+    public void setArticleBrowserEnabled(boolean value){articleBrowserEnabled=value;}
+    public String getArticleBrowserExecutable(){return articleBrowserExecutable;}
+    public void setArticleBrowserExecutable(String value){articleBrowserExecutable=value;}
+    private boolean ocgJpEnabled;
+    private String ocgJpRoute="/twitter/user/yu_gi_oh_jp";
+    public boolean isOcgJpEnabled(){return ocgJpEnabled;}
+    public void setOcgJpEnabled(boolean value){ocgJpEnabled=value;}
+    public String getOcgJpRoute(){return ocgJpRoute;}
+    public void setOcgJpRoute(String value){ocgJpRoute=value;}
+    public URI ocgJpFeedUri(){return feedUri(ocgJpRoute);}
     private String ocgRoute = "/twitter/user/YuGiOh_OCG_INFO";
 
     public boolean isOcgEnabled() { return ocgEnabled; }

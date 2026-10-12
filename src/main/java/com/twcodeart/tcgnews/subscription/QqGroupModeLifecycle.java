@@ -13,8 +13,8 @@ public class QqGroupModeLifecycle implements ApplicationRunner {
             java.util.List<com.twcodeart.tcgnews.source.NewsSource> sources){this.properties=properties;this.storage=storage;this.subscriptions=subscriptions;this.sources=sources;}
     public void run(ApplicationArguments args){
         if(properties.isGroupSubscriptionsEnabled()){
-            for(var source:sources)if(source.getSourceId().equals(QqNewsTopics.sourceId(Game.WEISS_SCHWARZ))
-                    ||source.getSourceId().equals(QqNewsTopics.sourceId(Game.YUGIOH_OCG)))subscriptions.seedLegacy(QqNewsTopics.game(source.getSourceId()),properties.groupId());
+            for(var source:sources)if(com.twcodeart.tcgnews.notification.RssHubNotificationSources.supports(source.getSourceId()))
+                subscriptions.seedLegacy(QqNewsTopics.game(source.getSourceId()),properties.groupId());
             return;
         }
         for(var game:Game.values())if(storage.execute(game,repos -> repos.subscriptions().count())>0)

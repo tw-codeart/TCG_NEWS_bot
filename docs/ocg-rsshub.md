@@ -3,7 +3,9 @@
 The optional source reads `@YuGiOh_OCG_INFO` through the existing RSSHub instance.
 KONAMI identifies this as its official OCG X account:
 https://www.konami.com/yugioh/campaign/tgs2026.
-No X follow action, paid API, OCG website scraper, TCG or Rush Duel source is added.
+This original source adds no X follow action, paid API, TCG or Rush Duel source.
+The separate opt-in `@yu_gi_oh_jp` linked-article source is described in
+[OCG linked articles](ocg-linked-articles.md); it does not replace this account.
 
 ## Enable
 

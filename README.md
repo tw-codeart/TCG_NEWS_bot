@@ -1,5 +1,12 @@
 # TCG News Bot
 
+**Linked OCG articles (2026-10-12):** `mvn test` and `mvn package` each passed 201
+tests. An additional opt-in `@yu_gi_oh_jp` RSSHub source follows official OCG article
+links alongside `@YuGiOh_OCG_INFO`, sharing OCG storage/subscriptions with separate
+history baselines. The supplied browser DOM replay yielded five new-card URLs;
+development-PC HTTP and isolated headless reads were blocked, so automatic live article retrieval and
+real QQ receipt remain unverified. See [OCG linked articles](docs/ocg-linked-articles.md).
+
 **Operations verification (2026-10-12):** `mvn test` and `mvn package` each passed
 184 tests. Windows PowerShell 5.1 checks covered offline/recovery detection,
 duplicate supervisor rejection, owned-worker restart/shutdown, Unicode paths,
@@ -759,7 +766,7 @@ Owner/admin group subscription commands are available as an opt-in. Windows logo
 startup, owned-worker supervision/local alerts, command-marker retention and an
 optional Japanese Tesseract provider are implemented. News/stamp pruning,
 pre-login service deployment and validated Japanese effect extraction remain **Planned**.
-Chinese translation, Discord delivery, OCG website sources and Yu-Gi-Oh! TCG support are future
+Chinese translation, Discord delivery, broader OCG website listing discovery and Yu-Gi-Oh! TCG support are future
 work. Manual QQ smoke tests and RSSHub notifications during manual or enabled
 periodic checks and unverified OCR/image forwarding are available as described
 above. No paid APIs, direct X/Twitter APIs or frontend framework are included.

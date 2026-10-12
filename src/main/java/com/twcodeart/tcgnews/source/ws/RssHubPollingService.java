@@ -33,9 +33,11 @@ public class RssHubPollingService {
         org.slf4j.MDC.put(com.twcodeart.tcgnews.diagnostics.DiagnosticIds.MDC_KEY, id);
         status.started();
         try {
+            var ocgSources=new java.util.ArrayList<String>();ocgSources.add(WsRssHubNewsSource.SOURCE_ID);
+            ocgSources.add(com.twcodeart.tcgnews.source.ocg.OcgRssHubNewsSource.SOURCE_ID);
+            if(properties.isOcgJpEnabled())ocgSources.add(com.twcodeart.tcgnews.source.ocg.YuGiOhJpRssHubNewsSource.SOURCE_ID);
             var result = properties.isOcgEnabled()
-                    ? fetch.fetchSourcesByIds(java.util.List.of(WsRssHubNewsSource.SOURCE_ID,
-                            com.twcodeart.tcgnews.source.ocg.OcgRssHubNewsSource.SOURCE_ID))
+                    ? fetch.fetchSourcesByIds(ocgSources)
                     : fetch.fetchSource(WsRssHubNewsSource.SOURCE_ID);
             status.completed(result, result.errors().isEmpty() ? null : id);
             log.info("RSSHub polling complete: fetched={}, saved={}, duplicates={}, errors={}",

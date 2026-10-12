@@ -44,7 +44,9 @@ public class ApiStatusController {
                 storage.isSeparated() ? "SEPARATED" : "SHARED", storage.isReady(),"compact-forward-v1",
                 com.twcodeart.tcgnews.notification.qq.QqNotificationSender.MAX_FORWARD_ITEMS,
                 environment.getProperty("qq.ocr-provider", "napcat"),ocr.snapshot(),
-                retentionProperties.isEnabled(), retentionProperties.getCommandDays(), retention.snapshot());
+                retentionProperties.isEnabled(), retentionProperties.getCommandDays(), retention.snapshot(),
+                rss && environment.getProperty("rsshub.ocg-enabled",Boolean.class,false)
+                        && environment.getProperty("rsshub.ocg-jp-enabled",Boolean.class,false));
     }
     public record Status(String apiRevision,List<String> games,List<String> sources,boolean pollingEnabled,
                          long pollingIntervalSeconds,boolean ocgEnabled,boolean qqEnabled,
@@ -52,5 +54,5 @@ public class ApiStatusController {
                          String storageMode,boolean storageReady,String forwardRevision,int forwardItemLimit,
                          String ocrProvider,com.twcodeart.tcgnews.notification.qq.OcrDiagnostics.Snapshot ocr,
                          boolean retentionEnabled,int commandRetentionDays,
-                         com.twcodeart.tcgnews.operations.CommandRetentionService.Snapshot retention) { }
+                         com.twcodeart.tcgnews.operations.CommandRetentionService.Snapshot retention,boolean ocgJpEnabled) { }
 }

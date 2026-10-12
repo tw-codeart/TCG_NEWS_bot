@@ -12,7 +12,7 @@ Copy-Item -LiteralPath $jar -Destination (Join-Path $out 'app.jar')
 Get-ChildItem -LiteralPath (Join-Path $root 'scripts/windows') -File |
     Where-Object {$_.Extension -in @('.cmd','.ps1') -or $_.Name -in @('config.example.env','operations.example.json')} |
     Copy-Item -Destination $out
-foreach($file in @('windows-operations.md','qq-group-subscriptions.md','separated-game-storage.md','automatic-qq-delivery.md','compact-forwards.md')) {
+foreach($file in @('windows-operations.md','qq-group-subscriptions.md','separated-game-storage.md','automatic-qq-delivery.md','compact-forwards.md','ocg-linked-articles.md')) {
     Copy-Item -LiteralPath (Join-Path $root ('docs/'+$file)) -Destination $out
 }
 $instructions=@'

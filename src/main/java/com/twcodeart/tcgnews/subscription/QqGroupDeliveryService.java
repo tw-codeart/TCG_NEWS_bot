@@ -19,7 +19,6 @@ public class QqGroupDeliveryService {
     private final QqProperties properties;
     private final QqNotificationSender sender;
     private final NewsNotificationService notifications;
-    private final Map<String,Boolean> baselines=new HashMap<>();
     private int nextTarget;
     public QqGroupDeliveryService(QqSubscriptionStore groups,QqDeliveryStore legacy,QqProperties properties,
                                  QqNotificationSender sender,NewsNotificationService notifications){
@@ -27,13 +26,13 @@ public class QqGroupDeliveryService {
     }
     public void prepare(String source){
         groups.seedLegacy(QqNewsTopics.game(source),properties.groupId());
-        baselines.put(source,legacy.status(source).bootstrapComplete());
     }
     public void capture(String source,NewsIngestionService.IngestionResult result,boolean completed){
         try{
-            boolean before=Boolean.TRUE.equals(baselines.get(source));
-            if(!before)legacy.capture(source,completed&&result.fetched()>0);
-            groups.capture(QqNewsTopics.game(source),before);
+            // Per-source eligibility precedes per-game group capture. A newly enabled account's
+            // historical rows must never enter an already subscribed game's queue.
+            legacy.capture(source,completed&&result.fetched()>0);
+            groups.captureEligible(QqNewsTopics.game(source));
         }catch(RuntimeException exception){log.error("Group queue capture failed; other sources continue: errorId={}, source={}",DiagnosticIds.current(),source,exception);}
     }
     public void deliver(List<String> sources,int limit){
@@ -41,6 +40,7 @@ public class QqGroupDeliveryService {
         for(String source:sources){
             if(!legacy.status(source).bootstrapComplete())continue;
             for(var target:groups.targets(QqNewsTopics.game(source))){
+                if(queues.containsKey(target))continue;
                 var packets=NewsForwardPackets.plan(groups.pending(target),sender.acceptsImages()?QqNotificationSender.MAX_FORWARD_ITEMS:1);
                 if(!packets.isEmpty())queues.put(target,new ArrayDeque<>(packets));
             }

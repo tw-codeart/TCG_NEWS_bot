@@ -27,7 +27,7 @@ public class RssHubQqNotificationService {
         this.store = store; this.properties = properties; this.senders = senders; this.notifications = notifications;
     }
     public boolean handles(String sourceId) {
-        return WsRssHubNewsSource.SOURCE_ID.equals(sourceId) || OcgRssHubNewsSource.SOURCE_ID.equals(sourceId);
+        return RssHubNotificationSources.supports(sourceId);
     }
     public int notificationLimit() { return properties.getNotificationBatchLimit(); }
     public void prepareSource(String sourceId) { store.prepare(sourceId); }

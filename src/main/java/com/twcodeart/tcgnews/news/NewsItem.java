@@ -48,6 +48,11 @@ public class NewsItem {
     @Column(nullable = false, length = 2048)
     private String sourceUrl;
 
+    @Column(length = 2048)
+    private String articleUrl;
+    public String getArticleUrl() { return articleUrl; }
+    public void setArticleUrl(String value) { articleUrl = value; }
+
     @Column(name = "content_hash", nullable = false, length = 64, unique = true)
     private String contentHash;
 

@@ -12,6 +12,7 @@ final class OfficialCardImage {
             if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getUserInfo() != null || uri.getFragment() != null
                     || uri.getPort() != -1 && uri.getPort() != 443 || host == null
                     || !(host.equalsIgnoreCase("pbs.twimg.com") || host.equalsIgnoreCase("ws-tcg.com")
+                    || host.equalsIgnoreCase("yu-gi-oh.jp") && uri.getPath().startsWith("/media/cms/v1/")
                     || host.toLowerCase(Locale.ROOT).endsWith(".ws-tcg.com"))) throw new IllegalArgumentException();
             return uri;
         } catch (IllegalArgumentException exception) {

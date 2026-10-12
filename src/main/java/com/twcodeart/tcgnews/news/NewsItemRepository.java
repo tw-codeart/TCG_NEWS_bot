@@ -24,6 +24,13 @@ public interface NewsItemRepository extends JpaRepository<NewsItem, Long> {
 
     boolean existsByContentHash(String contentHash);
 
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT n FROM NewsItem n WHERE n.game=:game AND n.category=:category AND n.id>:afterId
+            AND EXISTS (SELECT d.newsId FROM QqNewsDelivery d WHERE d.newsId=n.id) ORDER BY n.id ASC
+            """)
+    List<NewsItem> findEligibleQqGroupCandidates(Game game,NewsCategory category,long afterId,
+                                               org.springframework.data.domain.Pageable page);
+
     List<NewsItem> findByGame(Game game, Sort sort);
 
     org.springframework.data.domain.Page<NewsItem> findByGame(Game game, org.springframework.data.domain.Pageable pageable);

@@ -46,14 +46,20 @@ public class NewsQueryService {
     }
 
     public List<List<NewsItem>> findLatestXPosts(Game game, int limit) {
-        String prefix = xPrefix(game);
-        return inGame(game, repo -> repo.findLatestPostUrls(game, NewsCategory.CARD_REVEAL, prefix, PageRequest.of(0,limit)))
-                .stream().map(url -> postRecords(game,url)).toList();
+        return com.twcodeart.tcgnews.notification.RssHubNotificationSources.forGame(game).stream()
+                .flatMap(topic -> inGame(game, repo -> repo.findLatestPostUrls(game, NewsCategory.CARD_REVEAL,
+                        topic.prefix(), PageRequest.of(0,limit))).stream())
+                .map(url -> postRecords(game,url)).sorted(java.util.Comparator.comparing(
+                        (List<NewsItem> post) -> post.stream().map(NewsItem::getPublishedAt).filter(java.util.Objects::nonNull)
+                                .max(java.util.Comparator.naturalOrder()).orElse(null),
+                        java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder()))
+                        .thenComparing(post -> post.stream().map(NewsItem::getCreatedAt).max(java.util.Comparator.naturalOrder()).orElseThrow(),java.util.Comparator.reverseOrder()))
+                .limit(limit).toList();
     }
 
     public List<List<NewsItem>> findXPost(Game game,String postId) {
-        var records=postRecords(game,xPrefix(game)+postId);
-        return records.isEmpty() ? List.of() : List.of(records);
+        return com.twcodeart.tcgnews.notification.RssHubNotificationSources.forGame(game).stream()
+                .map(topic->postRecords(game,topic.prefix()+postId)).filter(records->!records.isEmpty()).toList();
     }
 
     private String xPrefix(Game game) {

@@ -19,4 +19,13 @@ class OcgRssHubConfigurationTest {
                             .isEqualTo("http://localhost:1200/twitter/user/YuGiOh_OCG_INFO");
                 });
     }
+    @Test void jpAccountRequiresItsOwnEnablementAndKeepsTheOriginalAccount() {
+        context.withUserConfiguration(YuGiOhJpFeedParser.class,YuGiOhJpArticleParser.class,YuGiOhJpArticleClient.class,YuGiOhJpRssHubNewsSource.class)
+                .withPropertyValues("rsshub.enabled=true","rsshub.ocg-enabled=true","rsshub.base-url=http://localhost:1200")
+                .run(app->assertThat(app).hasSingleBean(OcgRssHubNewsSource.class).doesNotHaveBean(YuGiOhJpRssHubNewsSource.class));
+        context.withUserConfiguration(YuGiOhJpFeedParser.class,YuGiOhJpArticleParser.class,YuGiOhJpArticleClient.class,YuGiOhJpRssHubNewsSource.class)
+                .withPropertyValues("rsshub.enabled=true","rsshub.ocg-enabled=true","rsshub.ocg-jp-enabled=true","rsshub.base-url=http://localhost:1200")
+                .run(app->{assertThat(app).hasSingleBean(OcgRssHubNewsSource.class).hasSingleBean(YuGiOhJpRssHubNewsSource.class);
+                    assertThat(app.getBean(RssHubProperties.class).ocgJpFeedUri().toString()).isEqualTo("http://localhost:1200/twitter/user/yu_gi_oh_jp");});
+    }
 }

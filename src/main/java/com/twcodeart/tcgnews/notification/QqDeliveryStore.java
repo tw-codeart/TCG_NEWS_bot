@@ -40,12 +40,23 @@ public class QqDeliveryStore {
             // Queue and cursor commit together in the selected game's transaction.
             var items = repositories.news().findQqDeliveryCandidates(game(sourceId), NewsCategory.CARD_REVEAL,
                     prefix(sourceId), cursor.getLastNewsId(), PageRequest.of(0, 500));
+            var baseline = repositories.bootstraps().findById(sourceId).orElseThrow();
+            int skippedHistorical=0;
             for (var item : items) {
+                if(com.twcodeart.tcgnews.source.ocg.YuGiOhJpRssHubNewsSource.SOURCE_ID.equals(sourceId)
+                        && (item.getPublishedAt()==null || !item.getPublishedAt().isAfter(baseline.getInitializedAt()))) {
+                    // An old article may become reachable only after the initial feed snapshot.
+                    cursor.advance(item.getId());
+                    skippedHistorical++;
+                    continue;
+                }
                 if (!repositories.deliveries().existsById(item.getId())) {
                     repositories.deliveries().save(new QqNewsDelivery(item.getId(), sourceId));
                 }
                 cursor.advance(item.getId());
             }
+            if(skippedHistorical>0)org.slf4j.LoggerFactory.getLogger(QqDeliveryStore.class)
+                    .info("Suppressed historical/undated official JP images: source={}, records={}",sourceId,skippedHistorical);
             return null;
         });
     }
@@ -84,12 +95,10 @@ public class QqDeliveryStore {
         return repositories.news().findLatestQqDeliveryId(game(sourceId), NewsCategory.CARD_REVEAL, prefix(sourceId));
     }
     private Game game(String id) {
-        if (WsRssHubNewsSource.SOURCE_ID.equals(id)) return Game.WEISS_SCHWARZ;
-        if (OcgRssHubNewsSource.SOURCE_ID.equals(id)) return Game.YUGIOH_OCG;
-        throw new IllegalArgumentException("Unsupported RSSHub notification source");
+        return RssHubNotificationSources.topic(id).game();
     }
     private String prefix(String id) {
-        return game(id) == Game.WEISS_SCHWARZ ? "https://x.com/wstcg/status/" : "https://x.com/YuGiOh_OCG_INFO/status/";
+        return RssHubNotificationSources.topic(id).prefix();
     }
     public record SourceStatus(String sourceId, boolean bootstrapComplete, boolean cursorInitialized,
                                long pendingItems, long sentItems, Instant lastAttemptAt, Instant lastSentAt,

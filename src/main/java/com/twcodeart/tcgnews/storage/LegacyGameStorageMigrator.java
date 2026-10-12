@@ -87,7 +87,8 @@ public class LegacyGameStorageMigrator {
         String source = Objects.toString(row.get("SOURCE_ID"), "");
         Game game;
         if (WsRssHubNewsSource.SOURCE_ID.equals(source)) game = Game.WEISS_SCHWARZ;
-        else if (OcgRssHubNewsSource.SOURCE_ID.equals(source)) game = Game.YUGIOH_OCG;
+        else if (OcgRssHubNewsSource.SOURCE_ID.equals(source)
+                ||com.twcodeart.tcgnews.source.ocg.YuGiOhJpRssHubNewsSource.SOURCE_ID.equals(source)) game = Game.YUGIOH_OCG;
         else throw new IllegalStateException("Unknown source ID in legacy notification state");
         if (table.equals("QQ_NEWS_DELIVERIES")) {
             long id = ((Number)row.get("NEWS_ID")).longValue();

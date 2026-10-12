@@ -25,9 +25,9 @@ public class QqSubscriptionStore {
             var id=new QqGroupSubscription.Id(game,groupId);
             if(!repos.subscriptions().existsById(id)){
                 repos.subscriptions().save(new QqGroupSubscription(game,groupId,latest(game,repos),true));
-                for(var old:repos.deliveries().findBySourceIdOrderByNewsIdAsc(QqNewsTopics.sourceId(game))){
-                    repos.groupDeliveries().save(QqGroupDelivery.legacy(game,groupId,old));
-                }
+                for(var topic:com.twcodeart.tcgnews.notification.RssHubNotificationSources.forGame(game))
+                    for(var old:repos.deliveries().findBySourceIdOrderByNewsIdAsc(topic.id()))
+                        repos.groupDeliveries().save(QqGroupDelivery.legacy(game,groupId,old));
             }
             repos.commands().save(new ProcessedQqCommand(key,groupId));return null;
         });
@@ -60,10 +60,9 @@ public class QqSubscriptionStore {
         repos.commands().saveAndFlush(new ProcessedQqCommand(key));return true;
     });}
 
-    public void capture(Game game,boolean previousBaselineComplete){storage.execute(game,repos -> {
+    public void captureEligible(Game game){storage.execute(game,repos -> {
         for(var subscription:repos.subscriptions().findByIdGameAndActiveTrueOrderByIdGroupIdAsc(game)){
-            if(!previousBaselineComplete){subscription.advance(latest(game,repos));continue;}
-            var items=repos.news().findQqDeliveryCandidates(game,NewsCategory.CARD_REVEAL,QqNewsTopics.prefix(game),
+            var items=repos.news().findEligibleQqGroupCandidates(game,NewsCategory.CARD_REVEAL,
                     subscription.getLastNewsId(),PageRequest.of(0,500));
             for(var item:items){
                 var id=new QqGroupDelivery.Id(game,subscription.getGroupId(),item.getId());
@@ -106,6 +105,7 @@ public class QqSubscriptionStore {
     });}
     public static String hash(String value){try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));}
         catch(java.security.NoSuchAlgorithmException e){throw new IllegalStateException(e);}}
-    private long latest(Game game,GameRepositories repos){return repos.news().findLatestQqDeliveryId(game,NewsCategory.CARD_REVEAL,QqNewsTopics.prefix(game));}
+    private long latest(Game game,GameRepositories repos){return com.twcodeart.tcgnews.notification.RssHubNotificationSources.forGame(game).stream()
+            .mapToLong(topic->repos.news().findLatestQqDeliveryId(game,NewsCategory.CARD_REVEAL,topic.prefix())).max().orElse(0);}
     public record Target(Game game,long groupId){ }
 }

@@ -11,7 +11,7 @@ final class QqForwardMessageFormatter {
 
     String withoutLinks(String message) {
         String text = LINKS.matcher(message).replaceAll("");
-        text = text.lines().filter(line -> !line.strip().equals("Official source:")
+        text = text.lines().filter(line -> !line.strip().equals("Official source:") && !line.strip().equals("Article:")
                 && !line.strip().equals("Image:")).collect(Collectors.joining("\n")).strip();
         return limit(text, 6000);
     }

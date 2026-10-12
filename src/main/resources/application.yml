@@ -18,6 +18,10 @@ spring:
       enabled: false
 
 rsshub:
+  article-browser-enabled: ${YUGIOH_JP_BROWSER_ENABLED:false}
+  article-browser-executable: ${YUGIOH_JP_BROWSER_EXECUTABLE:}
+  ocg-jp-enabled: ${RSSHUB_OCG_JP_ENABLED:false}
+  ocg-jp-route: ${RSSHUB_OCG_JP_ROUTE:/twitter/user/yu_gi_oh_jp}
   ocg-enabled: ${RSSHUB_OCG_ENABLED:false}
   ocg-route: ${RSSHUB_OCG_ROUTE:/twitter/user/YuGiOh_OCG_INFO}
   enabled: ${RSSHUB_ENABLED:false}
