@@ -42,6 +42,7 @@ logging:
     console: UTF-8
 
 qq:
+  adapter: ${QQ_ADAPTER:napcat}
   group-subscriptions-enabled: ${QQ_GROUP_SUBSCRIPTIONS_ENABLED:false}
   command-secret: ${QQ_COMMAND_SECRET:}
   image-forward-enabled: ${QQ_IMAGE_FORWARD_ENABLED:true}

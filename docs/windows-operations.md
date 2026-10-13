@@ -1,5 +1,9 @@
 # Windows operations and optional Japanese OCR
 
+QQ operations now support both NapCat and LLBot over OneBot 11. See
+[LLBot migration and daily checks](llbot-migration.md); `check-qq.cmd` checks the
+selected adapter's API/online status. Existing NapCat entry points remain compatible.
+
 These scripts target the existing portable Windows bundle, not Docker. They belong
 beside `app.jar`, `runtime`, `rsshub`, `config.env` and `data`. No real account
 credentials, NapCat binaries or database files are distributed in an update.
@@ -38,13 +42,15 @@ Optional `operations.local.json` (private, ignored by Git):
 
 ```json
 {
-  "napcatLauncherPath": "D:/NapCat/launcher.bat",
+  "qqLauncherPath": "D:/NapCat/launcher.bat",
   "preventSleep": true,
   "desktopAlerts": true
 }
 ```
 
 Use your existing actual launcher path; the example is not an installer path.
+For LLBot, use its actual launcher instead. An existing `napcatLauncherPath` is
+supported only when `QQ_ADAPTER` is unset or `napcat`; LLBot ignores that old path.
 Use `/` or escape backslashes in JSON. An empty path means start NapCat manually.
 When configured and its API is unreachable, the supervisor requests one launcher
 start. It never repeatedly spawns QQ or terminates another QQ session. Use the

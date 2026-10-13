@@ -1,0 +1,6 @@
+@echo off
+chcp 65001 >nul
+title TCG OneBot Read-Only Check
+cd /d "%~dp0"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0check-qq.ps1"
+pause

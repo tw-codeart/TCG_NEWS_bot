@@ -12,6 +12,13 @@ import static com.twcodeart.tcgnews.notification.qq.QqNotificationException.Reas
 public class QqProperties {
 
     private boolean enabled;
+    private String adapter = "napcat";
+    public String getAdapter() { return adapter; }
+    public void setAdapter(String value) {
+        if (!java.util.Set.of("napcat", "llbot").contains(value))
+            throw new IllegalArgumentException("qq.adapter must be napcat or llbot");
+        adapter = value;
+    }
     private boolean imageForwardEnabled = true;
     private boolean ocrEnabled = true;
     private String ocrProvider = "napcat";
@@ -19,8 +26,8 @@ public class QqProperties {
     private String tesseractDataDirectory = "";
     public String getOcrProvider() { return ocrProvider; }
     public void setOcrProvider(String value) {
-        if (!java.util.Set.of("napcat", "tesseract").contains(value))
-            throw new IllegalArgumentException("qq.ocr-provider must be napcat or tesseract");
+        if (!java.util.Set.of("napcat", "onebot", "tesseract").contains(value))
+            throw new IllegalArgumentException("qq.ocr-provider must be onebot, napcat or tesseract");
         ocrProvider = value;
     }
     public String getTesseractExecutable() { return tesseractExecutable; }

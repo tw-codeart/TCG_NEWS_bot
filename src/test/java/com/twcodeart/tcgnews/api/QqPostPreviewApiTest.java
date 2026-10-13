@@ -81,6 +81,7 @@ class QqPostPreviewApiTest {
                 .andExpect(jsonPath("$.apiRevision").value("post-preview-v2"))
                 .andExpect(jsonPath("$.pollingEnabled").value(false))
                 .andExpect(jsonPath("$.qqEnabled").value(true))
+                .andExpect(jsonPath("$.qqAdapter").value("napcat"))
                 .andExpect(jsonPath("$.pollingIntervalSeconds").value(300))
                 .andExpect(jsonPath("$.accessToken").doesNotExist())
                 .andExpect(jsonPath("$.testGroupId").doesNotExist());

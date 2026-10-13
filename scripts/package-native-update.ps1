@@ -12,7 +12,7 @@ Copy-Item -LiteralPath $jar -Destination (Join-Path $out 'app.jar')
 Get-ChildItem -LiteralPath (Join-Path $root 'scripts/windows') -File |
     Where-Object {$_.Extension -in @('.cmd','.ps1') -or $_.Name -in @('config.example.env','operations.example.json')} |
     Copy-Item -Destination $out
-foreach($file in @('windows-operations.md','qq-group-subscriptions.md','separated-game-storage.md','automatic-qq-delivery.md','compact-forwards.md','ocg-linked-articles.md')) {
+foreach($file in @('windows-operations.md','qq-group-subscriptions.md','separated-game-storage.md','automatic-qq-delivery.md','compact-forwards.md','ocg-linked-articles.md','llbot-migration.md')) {
     Copy-Item -LiteralPath (Join-Path $root ('docs/'+$file)) -Destination $out
 }
 $instructions=@'
@@ -20,11 +20,12 @@ Incremental update for an existing native Windows bundle; not a standalone insta
 Stop Java/RSSHub, copy app.jar and scripts into the original bundle folder.
 Preserve config.env, data, runtime, rsshub and private callback settings.
 Do not overwrite config.env with config.example.env or downgrade the JAR.
-Keep NapCat logged in, then use start-bot.cmd (do not start duplicate services).
+Keep your selected NapCat/LLBot adapter logged in, then use start-bot.cmd (do not start duplicate services).
 Use check-bot.cmd for status and stop-bot.cmd to stop owned Java/RSSHub.
 install-autostart.cmd is optional and installs a current-user logon task.
-See windows-operations.md for NapCat launcher, retention and optional Japanese OCR.
-This update excludes runtimes, NapCat/Tesseract installers, credentials and databases.
+See llbot-migration.md for LLBot setup; use check-qq.cmd for read-only API/online checks.
+See windows-operations.md for QQ launcher, retention and optional Japanese OCR.
+This update excludes runtimes, QQ adapter/Tesseract installers, credentials and databases.
 '@
 [IO.File]::WriteAllText((Join-Path $out 'UPDATE.txt'),$instructions,(New-Object Text.UTF8Encoding($false)))
 $zip=$out+'.zip'

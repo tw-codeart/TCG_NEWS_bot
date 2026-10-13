@@ -8,6 +8,7 @@ logs/
 config.env
 config.env.*
 napcat-http-client.local.json
+llbot-http-post.local.json
 operations.local.json
 operations.stop
 operations-status.json

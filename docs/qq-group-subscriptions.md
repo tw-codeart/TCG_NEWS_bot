@@ -26,6 +26,11 @@ do not trigger commands. Negative OneBot message IDs are supported.
 
 ## NapCat setup on the laptop
 
+LLBot uses the same signed Java callback and subscriptions. See
+[LLBot migration](llbot-migration.md) for its OneBot HTTP POST settings. With
+`QQ_ADAPTER=llbot`, the setup helper generates `llbot-http-post.local.json`
+instead of `napcat-http-client.local.json`; existing secrets/data are preserved.
+
 1. Stop Java, update the JAR/scripts, preserve the complete `data` and `config.env`.
 2. Run `start-group-subscriptions.cmd`. It requires separate storage, creates a
    random callback secret only if absent, preserves existing settings, creates

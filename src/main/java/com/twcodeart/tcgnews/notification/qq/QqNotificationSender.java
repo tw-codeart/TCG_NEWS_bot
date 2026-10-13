@@ -46,7 +46,7 @@ public class QqNotificationSender implements NotificationSender {
         this.api = new QqApiClient(properties, client);
         this.ocrDiagnostics = diagnostics;
         this.extractor = "tesseract".equals(properties.getOcrProvider())
-                ? new TesseractCardTextExtractor(properties) : new NapCatCardTextExtractor(api);
+                ? new TesseractCardTextExtractor(properties) : new OneBotCardTextExtractor(api);
     }
 
     private static RestClient httpClient() {
@@ -61,6 +61,7 @@ public class QqNotificationSender implements NotificationSender {
     public NotificationSender forSubscribedGroup(long groupId){
         if(groupId<1)throw new IllegalArgumentException("Invalid group");
         var bound=new QqProperties();bound.setEnabled(properties.isEnabled());bound.setApiBaseUrl(properties.getApiBaseUrl());
+        bound.setAdapter(properties.getAdapter());
         bound.setAccessToken(properties.getAccessToken());bound.setTestGroupId(Long.toString(groupId));
         bound.setImageForwardEnabled(properties.isImageForwardEnabled());bound.setOcrEnabled(properties.isOcrEnabled());
         bound.setOcrProvider(properties.getOcrProvider());

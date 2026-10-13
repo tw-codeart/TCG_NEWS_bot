@@ -1,4 +1,6 @@
 . (Join-Path $PSScriptRoot 'common.ps1')
+. (Join-Path $PSScriptRoot 'onebot-config.ps1')
+$adapter=Get-QqAdapterName
 Assert-FreePort 8080
 if ($env:GAME_STORAGE_SEPARATED_ENABLED -ne 'true') { throw 'Complete separated storage setup first; preserve the entire data folder.' }
 if ($env:QQ_TEST_GROUP_ID -notmatch '^[1-9][0-9]*$') { throw 'Keep the original configured QQ test group ID for legacy delivery stamps.' }
@@ -19,10 +21,9 @@ foreach ($setting in @('QQ_GROUP_SUBSCRIPTIONS_ENABLED=true',('QQ_COMMAND_SECRET
     if (-not $found) { $lines += $setting }
 }
 [System.IO.File]::WriteAllLines($configFile,$lines,(New-Object System.Text.UTF8Encoding($false)))
-$client = @{name='tcg-news-events';enable=$true;url='http://127.0.0.1:8080/api/qq/events';messagePostFormat='array';reportSelfMessage=$false;token=$secret;debug=$false}
-[System.IO.File]::WriteAllText((Join-Path $PSScriptRoot 'napcat-http-client.local.json'),($client | ConvertTo-Json),(New-Object System.Text.UTF8Encoding($false)))
+$privateFile=Write-OneBotCallbackConfig $PSScriptRoot $adapter $secret
 Write-Host 'Group subscription mode enabled. Existing API tokens and group ID were retained.'
-Write-Host 'Add a NapCat HTTP CLIENT with the URL/token from napcat-http-client.local.json (do not share this private file).'
-Write-Host 'Keep the existing NapCat HTTP SERVER for sending. Start Java with start-auto.cmd.'
+Write-Host ('Configure '+$adapter+' OneBot HTTP event reporting using '+$privateFile+' (do not share this private file).')
+Write-Host 'Keep the OneBot HTTP SERVER for sending. Start Java with start-auto.cmd.'
 Write-Host 'In a group, an owner/admin can use /news subscribe ws or /news subscribe ocg.'
 Write-Host 'After activation, retain QQ_GROUP_SUBSCRIPTIONS_ENABLED=true and the original QQ_TEST_GROUP_ID.'

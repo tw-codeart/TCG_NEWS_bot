@@ -7,11 +7,11 @@ import java.util.Map;
 
 import static com.twcodeart.tcgnews.notification.qq.QqNotificationException.Reason.API_FAILURE;
 
-/** NapCat's Windows OCR; language coverage and accuracy must be verified live. */
-final class NapCatCardTextExtractor implements CardTextExtractor {
+/** Shared OneBot OCR response used by NapCat and LLBot; accuracy requires live verification. */
+final class OneBotCardTextExtractor implements CardTextExtractor {
     private final QqApiClient api;
 
-    NapCatCardTextExtractor(QqApiClient api) {
+    OneBotCardTextExtractor(QqApiClient api) {
         this.api = api;
     }
 

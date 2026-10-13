@@ -10,7 +10,7 @@ if($Remove) {
 $settingsFile=Join-Path $PSScriptRoot 'operations.local.json'
 if(-not (Test-Path -LiteralPath $settingsFile)) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'operations.example.json') -Destination $settingsFile
-    Write-Host 'Created operations.local.json. Optionally set napcatLauncherPath to your existing launcher (use / in Windows JSON paths).'
+    Write-Host 'Created operations.local.json. Optionally set qqLauncherPath to your selected adapter launcher (use / in Windows JSON paths).'
 }
 $user=[Security.Principal.WindowsIdentity]::GetCurrent().Name
 $action=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -ExecutionPolicy Bypass -File "'+(Join-Path $PSScriptRoot 'run-bot.ps1')+'"') -WorkingDirectory $PSScriptRoot

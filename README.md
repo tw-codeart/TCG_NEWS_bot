@@ -1,5 +1,14 @@
 # TCG News Bot
 
+**LLBot compatibility (2026-10-13):** `mvn test` and `mvn package` each passed
+206 tests. OneBot sending, signed subscriptions and durable queues are reused;
+Windows setup/checks now support LLBot while retaining legacy NapCat settings.
+Mocked tests cover three-image forwards, shared OCR, failed acknowledgements and
+group commands. Windows PowerShell 5.1 checks verified configuration preservation,
+adapter identity/online checks and callback generation. Real LLBot login, receipt,
+Japanese OCR and long-running stability remain unverified. See
+[LLBot migration and daily tests](docs/llbot-migration.md).
+
 **Linked OCG articles (2026-10-12):** `mvn test` and `mvn package` each passed 201
 tests. An additional opt-in `@yu_gi_oh_jp` RSSHub source follows official OCG article
 links alongside `@YuGiOh_OCG_INFO`, sharing OCG storage/subscriptions with separate

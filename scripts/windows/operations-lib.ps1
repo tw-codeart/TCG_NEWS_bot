@@ -21,8 +21,8 @@ function Show-OperationAlert([string]$Code) {
 function Get-QqHealth([Uri]$BaseUri,[hashtable]$Headers) {
     try {
         $response=Invoke-RestMethod -Method Post -Uri ($BaseUri.AbsoluteUri.TrimEnd('/')+'/get_status') -Headers $Headers -ContentType 'application/json' -Body '{}' -TimeoutSec 5
-        if($response.status -ne 'ok' -or $response.retcode -ne 0) { return 'QQ_API_FAILURE' }
-        if($response.data.online -ne $true) { return 'QQ_OFFLINE_RELOGIN_REQUIRED' }
+        if($response.status -ne 'ok' -or $null -eq $response.retcode -or $response.retcode -ne 0) { return 'QQ_API_FAILURE' }
+        if($response.data.online -isnot [bool] -or -not $response.data.online) { return 'QQ_OFFLINE_RELOGIN_REQUIRED' }
         return 'QQ_OK'
     } catch {
         if($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -in @(401,403)) { return 'QQ_AUTH_FAILED' }

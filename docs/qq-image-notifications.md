@@ -1,5 +1,10 @@
 # QQ card images and unverified OCR
 
+LLBot is supported through the same OneBot HTTP sender and OCR response parser;
+see [LLBot migration](llbot-migration.md). Set `QQ_OCR_PROVIDER=onebot` for the
+shared `ocr_image` provider. The old `napcat` value remains a compatible alias.
+Live LLBot image receipt and Japanese OCR accuracy have not been verified.
+
 Each newly saved card image can be delivered as a merged forward containing two
 nodes: metadata from the existing formatter, then the original image and raw OCR
 text. Missing-image news uses plain text. QQ text omits HTTP(S) and `www.` links;

@@ -1,5 +1,7 @@
 . (Join-Path $PSScriptRoot 'common.ps1')
-. (Join-Path $PSScriptRoot 'napcat-preflight.ps1')
+. (Join-Path $PSScriptRoot 'onebot-preflight.ps1')
+. (Join-Path $PSScriptRoot 'onebot-config.ps1')
+$adapter=Get-QqAdapterName
 Assert-FreePort 8080
 if ([string]::IsNullOrWhiteSpace($env:TWITTER_AUTH_TOKEN)) { throw 'Set TWITTER_AUTH_TOKEN in config.env first.' }
 if ($env:QQ_TEST_GROUP_ID -notmatch '^[1-9][0-9]*$') { throw 'Set QQ_TEST_GROUP_ID in config.env first.' }
@@ -10,7 +12,7 @@ if (-not [Uri]::TryCreate($env:QQ_API_BASE_URL, [UriKind]::Absolute, [ref]$base)
 }
 $headers = @{}
 if (-not [string]::IsNullOrWhiteSpace($env:QQ_ACCESS_TOKEN)) { $headers.Authorization = 'Bearer ' + $env:QQ_ACCESS_TOKEN }
-Confirm-NapCatLogin -BaseUri $base -Headers $headers
+Confirm-OneBotLogin -BaseUri $base -Headers $headers -Adapter $adapter
 try {
     $feed = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:1200/twitter/user/wstcg' -TimeoutSec 30
     $settings = New-Object System.Xml.XmlReaderSettings
@@ -37,7 +39,7 @@ foreach ($setting in @('QQ_ENABLED=true','QQ_IMAGE_FORWARD_ENABLED=true','RSSHUB
     if (-not $found) { $lines += $setting }
 }
 [System.IO.File]::WriteAllLines($configFile,$lines,(New-Object System.Text.UTF8Encoding($false)))
-Write-Host 'NapCat login and RSSHub WS feed checks passed. No test message was sent.'
+Write-Host ('QQ adapter='+$adapter+' login and RSSHub WS feed checks passed. No test message was sent.')
 Write-Host 'Automatic QQ delivery enabled: first check after 10 seconds, then every 5 minutes.'
 Write-Host 'Historical baseline is suppressed. Failed/limited new records remain pending.'
-Write-Host 'Start start-app.cmd now. Keep Java, RSSHub and NapCat running; prevent laptop sleep.'
+Write-Host 'Start start-app.cmd now. Keep Java, RSSHub and your selected QQ adapter running; prevent laptop sleep.'

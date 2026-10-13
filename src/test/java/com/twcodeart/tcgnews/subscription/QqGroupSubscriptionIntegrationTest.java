@@ -29,7 +29,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties={"storage.separated-enabled=true","spring.jpa.hibernate.ddl-auto=update",
         "rsshub.enabled=true","rsshub.ocg-enabled=true","rsshub.base-url=http://feed.example","rsshub.polling-enabled=false",
-        "qq.enabled=true","qq.test-group-id=42","qq.group-subscriptions-enabled=true","qq.command-secret=synthetic-command-secret"})
+        "qq.enabled=true","qq.adapter=llbot","qq.ocr-provider=onebot","qq.test-group-id=42",
+        "qq.group-subscriptions-enabled=true","qq.command-secret=synthetic-command-secret"})
 @AutoConfigureMockMvc
 class QqGroupSubscriptionIntegrationTest {
     static final Path DIRECTORY=directory();
@@ -69,6 +70,13 @@ class QqGroupSubscriptionIntegrationTest {
         event("/news subscribe ws").andExpect(status().isNoContent());
         assertThat(store.active(Game.WEISS_SCHWARZ,99)).isTrue();
         assertThat(store.active(Game.YUGIOH_OCG,99)).isFalse();
+    }
+    @Test void reportsLlbotSelectionWithoutExposingApiOrCallbackSecrets() throws Exception {
+        mvc.perform(get("/api/status")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.qqAdapter").value("llbot"))
+                .andExpect(jsonPath("$.ocrProvider").value("onebot"))
+                .andExpect(jsonPath("$.accessToken").doesNotExist())
+                .andExpect(jsonPath("$.commandSecret").doesNotExist());
     }
     @Test void invalidMissingAndTamperedSignaturesMakeNoQqRequests() throws Exception {
         byte[] body=body("/news subscribe ws");
