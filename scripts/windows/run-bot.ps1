@@ -1,7 +1,6 @@
 . (Join-Path $PSScriptRoot 'common.ps1')
 . (Join-Path $PSScriptRoot 'operations-lib.ps1')
 . (Join-Path $PSScriptRoot 'onebot-config.ps1')
-$null=New-Item -ItemType Directory -Path (Join-Path $PSScriptRoot 'logs') -Force
 $mutex=New-Object Threading.Mutex($false,('Local\TCGNewsBot-'+(Get-BotInstanceKey $PSScriptRoot)))
 $locked=$false
 try { $locked=$mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $locked=$true }
@@ -40,28 +39,15 @@ try {
     Write-OperationEvent 'SUPERVISOR_STARTED'
     $previous='';$lastAlert=[DateTimeOffset]::MinValue;$started=[DateTimeOffset]::UtcNow
     while($true) {
-        if((Test-Path -LiteralPath $stopFile) -and ([IO.File]::ReadAllText($stopFile).Trim() -eq $session)) { break }
+        if(Test-BotStopRequest $stopFile $session) { break }
         $now=[DateTimeOffset]::UtcNow
         foreach($name in @('RSSHUB','JAVA')) {
-            $worker=$workers[$name]
-            if($worker.external) { continue }
-            if($worker.process -and $worker.process.HasExited) {
-                $worker.failures++;$worker.nextStart=$now.AddSeconds((Get-RestartDelay $worker.failures))
-                Write-OperationEvent ($name+'_EXITED_RESTART_BACKOFF')
-                $worker.process=$null
-            }
-            if(-not $worker.process -and $now -ge $worker.nextStart) {
-                if(Get-NetTCPConnection -LocalPort $worker.definition.port -State Listen -ErrorAction SilentlyContinue) {
-                    $worker.external=$true;Write-OperationEvent ($name+'_PORT_TAKEN_RESTART_ABORTED');continue
-                }
-                $worker.process=Start-BotWorker $worker.definition.script;$worker.startedAt=$now
-                Write-OperationEvent ($name+'_STARTED')
-            }
-            if($worker.process -and ($now-$worker.startedAt).TotalMinutes -ge 10) { $worker.failures=0 }
+            Update-BotWorker $workers[$name] $now
         }
         $codes=New-Object 'System.Collections.Generic.List[string]'
-        $drive=New-Object IO.DriveInfo([IO.Path]::GetPathRoot($PSScriptRoot))
-        if($drive.IsReady -and $drive.AvailableFreeSpace -lt 512MB) { $codes.Add('DISK_SPACE_LOW') }
+        $disk=Get-DiskHealth $PSScriptRoot
+        if($disk -ne 'DISK_OK') { $codes.Add($disk) }
+        foreach($name in @('RSSHUB','JAVA')) { if(-not $workers[$name].external -and -not $workers[$name].process) { $codes.Add($name+'_RESTART_PENDING') } }
         $qq=Get-QqHealth $base $headers
         if($qq -ne 'QQ_OK') { $codes.Add($qq) }
         try {
@@ -79,16 +65,19 @@ try {
         } elseif($codes.Count -gt 0 -and ($now-$lastAlert).TotalMinutes -ge 30 -and ($now-$started).TotalSeconds -gt 90) {
             foreach($code in $codes) { Show-OperationAlert $code };$lastAlert=$now
         }
-        $public=[ordered]@{revision='windows-supervisor-v2';qqAdapter=$adapter;session=$session;updatedAt=$now.ToString('o');health=$state;javaManaged=(-not $workers.JAVA.external);rsshubManaged=(-not $workers.RSSHUB.external)}
-        [IO.File]::WriteAllText(($statusFile+'.tmp'),($public|ConvertTo-Json),(New-Object Text.UTF8Encoding($false)))
-        Move-Item -LiteralPath ($statusFile+'.tmp') -Destination $statusFile -Force
+        $public=[ordered]@{revision='windows-supervisor-v3';qqAdapter=$adapter;session=$session;updatedAt=$now.ToString('o');health=$state;javaManaged=(-not $workers.JAVA.external);rsshubManaged=(-not $workers.RSSHUB.external)}
+        $null=Write-OperationStatus $statusFile $public
         Start-Sleep -Seconds 15
     }
 } catch { Write-OperationEvent 'OPERATIONS_CONFIG_OR_PROCESS_ERROR';Show-OperationAlert 'OPERATIONS_CONFIG_ERROR';throw }
 finally {
-    foreach($worker in $workers.Values) { Stop-OwnedTree $worker.process }
+    foreach($worker in $workers.Values) {
+        try { Stop-OwnedTree $worker.process }
+        catch { Write-OperationEvent 'OPERATIONS_WORKER_STOP_FAILED' }
+    }
     if('TcgAwake' -as [type]) { $null=[TcgAwake]::SetThreadExecutionState([uint32]2147483648) }
     Write-OperationEvent 'SUPERVISOR_STOPPED'
-    if(Test-Path -LiteralPath $statusFile) { Remove-Item -LiteralPath $statusFile -Force }
+    try { if(Test-Path -LiteralPath $statusFile -PathType Leaf) { Remove-Item -LiteralPath $statusFile -Force } }
+    catch { Write-OperationEvent 'OPERATIONS_STATUS_CLEANUP_FAILED' }
     if($locked) { $mutex.ReleaseMutex() };$mutex.Dispose()
 }

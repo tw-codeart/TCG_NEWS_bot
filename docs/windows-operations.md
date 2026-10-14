@@ -23,6 +23,14 @@ taking ownership or starting a duplicate. It does not restart an alive but slow
 Java process: a send might be in flight. A stale poll is reported instead.
 The shared folder mutex rejects a second supervisor instance.
 
+Supervisor v3 isolates diagnostic failures: an unwritable operations log/status
+snapshot, an unreadable stop signal, or a failed popup launch is reported with a
+fixed safe code and does not shut down Java/RSSHub. A failed worker launch gets
+the same bounded restart backoff as an exited worker; the other worker continues.
+Snapshots expose `JAVA_RESTART_PENDING`/`RSSHUB_RESTART_PENDING` when appropriate.
+Invalid configuration still fails startup, and intentional shutdown still stops
+only owned workers. This does not guarantee recovery from every OS/process fault.
+
 - `start-bot.cmd`: start supervised RSSHub/Java and health monitoring.
 - `stop-bot.cmd`: request shutdown of owned workers; NapCat is left running.
 - `check-bot.cmd`: read supervisor status, API flags and pending/sent counts.
@@ -70,6 +78,26 @@ Popup windows close after ten seconds. Recovery is reported. Popups are local
 to the logged-in user, not QQ messages. Errors remain available in logs even
 when no interactive desktop is visible. `operations-status.json` is a local
 snapshot, not proof that another machine or real group received a message.
+
+If file logging is unavailable, the monitor console reports
+`OPERATIONS_LOG_WRITE_FAILED`; do not expect that failed write to appear in the
+log. Status failures report `OPERATIONS_STATUS_WRITE_FAILED`, popup launch failures
+report `OPERATIONS_ALERT_START_FAILED`, and worker launch failures report
+`JAVA_START_FAILED_RETRY_PENDING` or `RSSHUB_START_FAILED_RETRY_PENDING`.
+`check-bot.cmd` warns about snapshots older than two minutes and still queries
+Java when the local snapshot is malformed/unreadable. A stale snapshot alone is
+not proof the service stopped. Fix folder permissions/free space rather than
+deleting databases or delivery stamps.
+
+Verification: `test-operations.ps1`, `test-onebot.ps1` and
+`test-operations-resilience.ps1` passed on Windows PowerShell 5.1. The real-process
+`test-supervisor-resilience.ps1` passed against local Node HTTP stubs, with actual
+log/status-write and popup/start-launch failures injected. Observation cadence
+was accelerated only in the temporary test copy; the 60-second restart delay was
+unchanged. The test verified unrelated-worker continuity, status recovery,
+duplicate rejection and scoped shutdown. It requires free ports 8080/1200/21837,
+Node and permission to inspect Windows processes. It never sends real QQ messages.
+Java was unchanged and Maven was not rerun in this script-only phase.
 
 While active, `preventSleep=true` requests Windows keep the system awake; it
 does not keep the display on or prevent manual sleep/shutdown. This request is

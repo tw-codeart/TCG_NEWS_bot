@@ -7,16 +7,70 @@ function Get-BotInstanceKey([string]$Directory) {
 function Write-OperationEvent([string]$Code) {
     $line=(Get-Date).ToUniversalTime().ToString('o')+' '+$Code
     $path=Join-Path $PSScriptRoot 'logs/operations.log'
-    if((Test-Path -LiteralPath $path) -and (Get-Item -LiteralPath $path).Length -gt 1MB) {
-        Move-Item -LiteralPath $path -Destination ($path+'.1') -Force
+    try {
+        $null=New-Item -ItemType Directory -Path (Split-Path -Parent $path) -Force
+        if((Test-Path -LiteralPath $path) -and (Get-Item -LiteralPath $path).Length -gt 1MB) {
+            Move-Item -LiteralPath $path -Destination ($path+'.1') -Force
+        }
+        [IO.File]::AppendAllText($path,$line+[Environment]::NewLine,(New-Object Text.UTF8Encoding($false)))
+    } catch {
+        Write-Warning 'OPERATIONS_LOG_WRITE_FAILED: monitoring continues; check disk space and folder permissions.'
     }
-    [IO.File]::AppendAllText($path,$line+[Environment]::NewLine,(New-Object Text.UTF8Encoding($false)))
     Write-Host $line
 }
 function Show-OperationAlert([string]$Code) {
     if(-not $script:operationsSettings.desktopAlerts) { return }
     $env:TCG_ALERT_CODE=$Code
-    $null=Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'operation-alert.ps1')+'"')) -WindowStyle Hidden -PassThru
+    try {
+        $null=Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'operation-alert.ps1')+'"')) -WindowStyle Hidden -PassThru
+    } catch { Write-OperationEvent 'OPERATIONS_ALERT_START_FAILED' }
+}
+function Write-OperationStatus([string]$Path,$Status) {
+    try {
+        if(Test-Path -LiteralPath $Path -PathType Container) { throw 'Status path is a directory.' }
+        [IO.File]::WriteAllText(($Path+'.tmp'),($Status|ConvertTo-Json),(New-Object Text.UTF8Encoding($false)))
+        Move-Item -LiteralPath ($Path+'.tmp') -Destination $Path -Force
+        return $true
+    } catch {
+        Write-OperationEvent 'OPERATIONS_STATUS_WRITE_FAILED'
+        return $false
+    }
+}
+function Test-BotStopRequest([string]$Path,[string]$Session) {
+    try { return (Test-Path -LiteralPath $Path) -and ([IO.File]::ReadAllText($Path).Trim() -eq $Session) }
+    catch { Write-OperationEvent 'OPERATIONS_STOP_READ_FAILED';return $false }
+}
+function Get-DiskHealth([string]$Directory) {
+    try {
+        $drive=New-Object IO.DriveInfo([IO.Path]::GetPathRoot($Directory))
+        if(-not $drive.IsReady) { return 'DISK_CHECK_FAILED' }
+        if($drive.AvailableFreeSpace -lt 512MB) { return 'DISK_SPACE_LOW' }
+        return 'DISK_OK'
+    } catch { return 'DISK_CHECK_FAILED' }
+}
+function Update-BotWorker($Worker,[DateTimeOffset]$Now) {
+    $name=$Worker.definition.name
+    if($Worker.external) { return }
+    if($Worker.process -and $Worker.process.HasExited) {
+        $Worker.failures++;$Worker.nextStart=$Now.AddSeconds((Get-RestartDelay $Worker.failures))
+        $Worker.process=$null
+        Write-OperationEvent ($name+'_EXITED_RESTART_BACKOFF')
+    }
+    if(-not $Worker.process -and $Now -ge $Worker.nextStart) {
+        try {
+            if(Get-NetTCPConnection -LocalPort $Worker.definition.port -State Listen -ErrorAction SilentlyContinue) {
+                $Worker.external=$true;Write-OperationEvent ($name+'_PORT_TAKEN_RESTART_ABORTED');return
+            }
+            $Worker.process=Start-BotWorker $Worker.definition.script
+            $Worker.startedAt=$Now
+            Write-OperationEvent ($name+'_STARTED')
+        } catch {
+            $Worker.failures++;$Worker.nextStart=$Now.AddSeconds((Get-RestartDelay $Worker.failures))
+            $Worker.process=$null
+            Write-OperationEvent ($name+'_START_FAILED_RETRY_PENDING')
+        }
+    }
+    if($Worker.process -and ($Now-$Worker.startedAt).TotalMinutes -ge 10) { $Worker.failures=0 }
 }
 function Get-QqHealth([Uri]$BaseUri,[hashtable]$Headers) {
     try {

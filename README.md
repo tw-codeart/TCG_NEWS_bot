@@ -1,5 +1,14 @@
 # TCG News Bot
 
+**Supervisor failure isolation:** Windows PowerShell 5.1 unit checks and a real
+supervisor with local HTTP/process stubs verified survival of log/status/popup
+failures, a worker-start retry after 60 seconds, continued operation of the other
+worker, status recovery, singleton ownership and scoped shutdown. Stale/unreadable
+supervisor snapshots no longer block direct Java checks. This phase changes only
+Windows scripts/documentation; Maven was not rerun and Java remains at the
+previously verified LLBot version. No real QQ delivery or laptop soak test was
+performed. See [Windows operations](docs/windows-operations.md).
+
 **LLBot compatibility (2026-10-13):** `mvn test` and `mvn package` each passed
 206 tests. OneBot sending, signed subscriptions and durable queues are reused;
 Windows setup/checks now support LLBot while retaining legacy NapCat settings.
