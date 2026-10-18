@@ -17,6 +17,12 @@ public class YuGiOhJpFeedParser {
     private static final Logger log=LoggerFactory.getLogger(YuGiOhJpFeedParser.class);
     private static final Pattern LINK=Pattern.compile("https://yu-gi-oh\\.jp/news/[A-Za-z0-9_-]+/?");
     private static final Pattern NEW_CARDS=Pattern.compile("(?:新カード|新規カード|新テーマ).{0,100}(?:公開|発表|登場)|収録カード公開",Pattern.DOTALL);
+    private static final Pattern CARD_NEWS=Pattern.compile("CARD\\s*ニュース\\s*\\(OCG\\)");
+    private boolean cardArticle(String text) {
+        String normalized=Normalizer.normalize(text,Normalizer.Form.NFKC);
+        return normalized.contains("OCG") && (NEW_CARDS.matcher(normalized).find()
+                || CARD_NEWS.matcher(normalized).find() && normalized.contains("Vジャンプ") && normalized.contains("記事"));
+    }
     public List<Post> parse(byte[] bytes) throws IOException,FeedException {
         var input=new SyndFeedInput();input.setAllowDoctypes(false);input.setXmlHealerOn(false);
         var result=new ArrayList<Post>();
@@ -27,10 +33,9 @@ public class YuGiOhJpFeedParser {
                 for(var content:entry.getContents())bodies.add(fragment(content.getValue()));
                 String title=fragment(entry.getTitle()).text();
                 String full=title+"\n"+bodies.stream().map(org.jsoup.nodes.Document::text).collect(java.util.stream.Collectors.joining("\n"));
-                String normalized=Normalizer.normalize(full,Normalizer.Form.NFKC);
-                if(!normalized.contains("OCG")||!NEW_CARDS.matcher(normalized).find())continue;
-                if(title.isBlank()||!NEW_CARDS.matcher(Normalizer.normalize(title,Normalizer.Form.NFKC)).find())
-                    title=bodies.stream().map(org.jsoup.nodes.Document::text).filter(text -> NEW_CARDS.matcher(Normalizer.normalize(text,Normalizer.Form.NFKC)).find())
+                if(!cardArticle(full))continue;
+                if(title.isBlank()||!cardArticle(title))
+                    title=bodies.stream().map(org.jsoup.nodes.Document::text).filter(this::cardArticle)
                             .findFirst().orElse(title);
                 if(title.isBlank()||title.length()>1000)throw new IllegalArgumentException("Missing or oversized original post title");
                 String source=postUrl(entry.getLink()==null||entry.getLink().isBlank()?entry.getUri():entry.getLink());

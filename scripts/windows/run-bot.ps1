@@ -1,6 +1,7 @@
-. (Join-Path $PSScriptRoot 'common.ps1')
+﻿. (Join-Path $PSScriptRoot 'common.ps1')
 . (Join-Path $PSScriptRoot 'operations-lib.ps1')
 . (Join-Path $PSScriptRoot 'onebot-config.ps1')
+. (Join-Path $PSScriptRoot 'napcat-recovery.ps1')
 $mutex=New-Object Threading.Mutex($false,('Local\TCGNewsBot-'+(Get-BotInstanceKey $PSScriptRoot)))
 $locked=$false
 try { $locked=$mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $locked=$true }
@@ -14,6 +15,7 @@ try {
     $settingsFile=Join-Path $PSScriptRoot 'operations.local.json'
     if(Test-Path -LiteralPath $settingsFile) { $script:operationsSettings=[IO.File]::ReadAllText($settingsFile) | ConvertFrom-Json }
     $adapter=Get-QqAdapterName
+    $napcatRecovery=New-NapCatRecoveryState $script:operationsSettings $adapter
     if($env:QQ_ENABLED -ne 'true' -or $env:RSSHUB_POLLING_ENABLED -ne 'true') { throw 'Enable automatic QQ delivery first with start-auto.cmd; stop its Java before starting this supervisor.' }
     $base=$null
     if(-not [Uri]::TryCreate($env:QQ_API_BASE_URL,[UriKind]::Absolute,[ref]$base) -or $base.Scheme -notin @('http','https') -or $base.UserInfo -or $base.Query -or $base.Fragment) { throw 'Invalid QQ API configuration.' }
@@ -24,20 +26,18 @@ try {
         $null=[TcgAwake]::SetThreadExecutionState([uint32]2147483649)
     }
     $launcher=Get-QqLauncherPath $script:operationsSettings $adapter
-    if($launcher -and (Get-QqHealth $base $headers) -eq 'QQ_UNAVAILABLE') {
-        if(-not [IO.Path]::IsPathRooted($launcher) -or -not (Test-Path -LiteralPath $launcher -PathType Leaf) -or [IO.Path]::GetExtension($launcher) -notin @('.bat','.cmd','.exe')) { throw 'Set an existing absolute QQ adapter launcher path.' }
+    if(-not $napcatRecovery.enabled -and $launcher -and (Get-QqHealth $base $headers) -eq 'QQ_UNAVAILABLE') {
         # Launch once. Never repeatedly spawn or kill QQ when its login session is expired.
-        $env:TCG_QQ_LAUNCHER=$launcher
-        $null=Start-Process 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'launch-qq.ps1')+'"')) -WorkingDirectory (Split-Path -Parent $launcher) -WindowStyle Hidden -PassThru
-        Write-OperationEvent 'QQ_LAUNCH_REQUESTED'
+        $null=Start-QqAdapterOnce $launcher
     }
     foreach($worker in @(@{name='RSSHUB';port=1200;script='start-rsshub.ps1'},@{name='JAVA';port=8080;script='start-app.ps1'})) {
-        $external=[bool](Get-NetTCPConnection -LocalPort $worker.port -State Listen -ErrorAction SilentlyContinue)
+        $external=Test-BotPortOccupied $worker.port
         $workers[$worker.name]=@{definition=$worker;process=$null;external=$external;failures=0;nextStart=[DateTimeOffset]::MinValue;startedAt=$null}
         if($external) { Write-OperationEvent ($worker.name+'_EXTERNAL_PROCESS_NOT_OWNED') }
     }
     Write-OperationEvent 'SUPERVISOR_STARTED'
     $previous='';$lastAlert=[DateTimeOffset]::MinValue;$started=[DateTimeOffset]::UtcNow
+    $qqObservation=@{qqLastHealthyAt=$null;qqUnhealthySince=$null}
     while($true) {
         if(Test-BotStopRequest $stopFile $session) { break }
         $now=[DateTimeOffset]::UtcNow
@@ -49,6 +49,9 @@ try {
         if($disk -ne 'DISK_OK') { $codes.Add($disk) }
         foreach($name in @('RSSHUB','JAVA')) { if(-not $workers[$name].external -and -not $workers[$name].process) { $codes.Add($name+'_RESTART_PENDING') } }
         $qq=Get-QqHealth $base $headers
+        Update-NapCatRecovery $napcatRecovery $qq $base ([DateTimeOffset]::UtcNow)
+        if($napcatRecovery.code -eq 'CONFIG_INVALID'){$codes.Add('NAPCAT_RECOVERY_CONFIG_INVALID')}
+        $qqObservation=Get-QqObservation $qqObservation $qq ([DateTimeOffset]::UtcNow)
         if($qq -ne 'QQ_OK') { $codes.Add($qq) }
         try {
             $status=Invoke-RestMethod 'http://127.0.0.1:8080/api/status' -TimeoutSec 5
@@ -65,12 +68,15 @@ try {
         } elseif($codes.Count -gt 0 -and ($now-$lastAlert).TotalMinutes -ge 30 -and ($now-$started).TotalSeconds -gt 90) {
             foreach($code in $codes) { Show-OperationAlert $code };$lastAlert=$now
         }
-        $public=[ordered]@{revision='windows-supervisor-v3';qqAdapter=$adapter;session=$session;updatedAt=$now.ToString('o');health=$state;javaManaged=(-not $workers.JAVA.external);rsshubManaged=(-not $workers.RSSHUB.external)}
+        $public=[ordered]@{revision='windows-supervisor-v6';qqAdapter=$adapter;session=$session;updatedAt=$now.ToString('o');health=$state;javaManaged=(-not $workers.JAVA.external);rsshubManaged=(-not $workers.RSSHUB.external);
+            napcatRecoveryEnabled=$napcatRecovery.enabled;napcatRecoveryState=$napcatRecovery.code;napcatRecoveryAttempts=$napcatRecovery.attempts;
+            qqHealth=$qqObservation.qqHealth;qqLastCheckedAt=$qqObservation.qqLastCheckedAt;qqLastHealthyAt=$qqObservation.qqLastHealthyAt;qqUnhealthySince=$qqObservation.qqUnhealthySince}
         $null=Write-OperationStatus $statusFile $public
         Start-Sleep -Seconds 15
     }
 } catch { Write-OperationEvent 'OPERATIONS_CONFIG_OR_PROCESS_ERROR';Show-OperationAlert 'OPERATIONS_CONFIG_ERROR';throw }
 finally {
+    if($napcatRecovery -and $napcatRecovery.process){try{Stop-OwnedTree $napcatRecovery.process}catch{Write-OperationEvent 'NAPCAT_MANAGED_STOP_FAILED'}}
     foreach($worker in $workers.Values) {
         try { Stop-OwnedTree $worker.process }
         catch { Write-OperationEvent 'OPERATIONS_WORKER_STOP_FAILED' }

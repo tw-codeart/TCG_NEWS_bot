@@ -10,6 +10,14 @@ import java.time.LocalDate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PlainTextNotificationFormatterTest {
+    @Test void includesOriginalArticleTextWithoutChangingTheOriginalPostTitle() {
+        NewsItem item=new NewsItem(Game.YUGIOH_OCG,NewsCategory.CARD_REVEAL,"Original post",null,null,null,
+                "https://yu-gi-oh.jp/media/cms/v1/card.webp","https://x.com/yu_gi_oh_jp/status/101","b".repeat(64));
+        item.setArticleUrl("https://yu-gi-oh.jp/news/article/");
+        item.setArticleText("新カードの公式説明\n第二行");
+        assertThat(formatter.format(item)).contains("Title: Original post", "Article text (original):\n新カードの公式説明\n第二行",
+                "https://yu-gi-oh.jp/news/article/");
+    }
 
     private final NotificationFormatter formatter = new PlainTextNotificationFormatter();
     private static final String SOURCE = "https://ws-tcg.com/products/test/";

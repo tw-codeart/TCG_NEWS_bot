@@ -4,7 +4,7 @@ $ErrorActionPreference='Stop'
 if(-not $Fixture) {
     $directory=Join-Path ([IO.Path]::GetTempPath()) ('TCG-Resilience-Test-'+[Guid]::NewGuid().ToString('N'))
     $null=New-Item -ItemType Directory -Path $directory
-    foreach($name in @('operations-lib.ps1','test-operations-resilience.ps1','check-bot.ps1')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $directory }
+    foreach($name in @('operations-lib.ps1','port-check.ps1','test-operations-resilience.ps1','check-bot.ps1')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $directory }
     try { & (Join-Path $directory 'test-operations-resilience.ps1') -Fixture }
     finally {
         $resolved=[IO.Path]::GetFullPath($directory)
@@ -22,6 +22,12 @@ $global:tcgResilienceAlertStarts=0
 function Start-Process { $global:tcgResilienceAlertStarts++;throw 'synthetic secret-bearing process launch failure' }
 Show-OperationAlert 'QQ_UNAVAILABLE'
 Assert-True ($global:tcgResilienceAlertStarts -eq 1) 'failed alert launch isolated'
+Assert-True (-not (Start-QqAdapterOnce 'relative-launcher.cmd')) 'invalid QQ launcher isolated'
+Assert-True ($global:tcgResilienceAlertStarts -eq 1) 'invalid path starts no process'
+$dummyLauncher=Join-Path $PSScriptRoot 'synthetic-launcher.cmd'
+[IO.File]::WriteAllText($dummyLauncher,'@echo off')
+Assert-True (-not (Start-QqAdapterOnce $dummyLauncher)) 'QQ launcher start failure isolated'
+Assert-True ($global:tcgResilienceAlertStarts -eq 2) 'QQ launch failure actually injected'
 $statusPath=Join-Path $PSScriptRoot 'operations-status.json'
 $null=New-Item -ItemType Directory -Path ($statusPath+'.tmp')
 Assert-True (-not (Write-OperationStatus $statusPath @{health='test'})) 'status failure returns false'

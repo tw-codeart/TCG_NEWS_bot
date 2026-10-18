@@ -1,4 +1,5 @@
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'port-check.ps1')
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 [Console]::OutputEncoding = $utf8
 $OutputEncoding = $utf8
@@ -16,7 +17,7 @@ foreach ($line in [System.IO.File]::ReadAllLines($configFile)) {
     [Environment]::SetEnvironmentVariable($parts[0].Trim(), $parts[1].Trim(), 'Process')
 }
 function Assert-FreePort([int] $Port) {
-    if (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) {
+    if (Test-BotPortOccupied $Port) {
         throw "Port $Port is already occupied. Stop the old service before starting this one."
     }
 }

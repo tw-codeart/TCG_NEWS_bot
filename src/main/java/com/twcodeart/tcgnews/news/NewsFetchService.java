@@ -60,6 +60,42 @@ public class NewsFetchService {
         return fetchSources(selected);
     }
 
+    /** Shares the normal fetch lock and ingestion policy, but never calls a sender. */
+    public synchronized List<BackfillSource> refreshForBackfill(Game game) {
+        var rssHub = rssHubNotifications.getIfAvailable();
+        var selected = sources.stream().filter(source -> source.getGame() == game
+                && com.twcodeart.tcgnews.notification.RssHubNotificationSources.supports(source.getSourceId())).toList();
+        if (rssHub == null || selected.isEmpty()) throw new IllegalArgumentException(game == Game.YUGIOH_OCG
+                ? "Enable RSSHUB_OCG_ENABLED=true in config.env and restart collection"
+                : "Enable the WS RSSHub source and restart collection");
+        var reports = new ArrayList<BackfillSource>();
+        for (NewsSource source : selected) {
+            try {
+                rssHub.prepareSource(source.getSourceId());
+                if (groups != null) groups.prepare(source.getSourceId());
+                var snapshot = List.copyOf(source.fetchNews());
+                var result = ingestion.fetchAndSaveWithSummary(new NewsSource() {
+                    public String getSourceId() { return source.getSourceId(); }
+                    public Game getGame() { return source.getGame(); }
+                    public List<NewsItem> fetchNews() { return snapshot; }
+                });
+                if (groups != null) groups.capture(source.getSourceId(), result, true);
+                else rssHub.captureSource(source.getSourceId(), result.fetched() > 0);
+                var dates = snapshot.stream().map(NewsItem::getPublishedAt).filter(java.util.Objects::nonNull).sorted().toList();
+                reports.add(new BackfillSource(source.getSourceId(), result.fetched(), result.savedItems().size(),
+                        dates.isEmpty() ? null : dates.get(0), dates.isEmpty() ? null : dates.get(dates.size()-1), null));
+            } catch (com.twcodeart.tcgnews.source.NewsSourceException | RuntimeException exception) {
+                String id = com.twcodeart.tcgnews.diagnostics.DiagnosticIds.current();
+                log.error("Backfill refresh failed; other sources continue: errorId={}, source={}", id, source.getSourceId(), exception);
+                reports.add(new BackfillSource(source.getSourceId(), 0, 0, null, null, id));
+            }
+        }
+        return List.copyOf(reports);
+    }
+
+    public record BackfillSource(String sourceId, int fetched, int saved, java.time.Instant oldestAvailable,
+                                 java.time.Instant newestAvailable, String errorId) { }
+
     // Manual and scheduled fetches share this lock and the same save/notification flow.
     private synchronized NewsFetchSummary fetchSources(List<NewsSource> selectedSources) {
         var rssHub = rssHubNotifications.getIfAvailable();

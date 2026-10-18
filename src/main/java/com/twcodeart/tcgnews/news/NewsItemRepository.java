@@ -9,6 +9,15 @@ import java.util.List;
 public interface NewsItemRepository extends JpaRepository<NewsItem, Long> {
 
     @org.springframework.data.jpa.repository.Query("""
+            SELECT n FROM NewsItem n WHERE n.game=:game AND n.category=:category
+            AND n.publishedAt>=:from AND n.publishedAt<:until
+            AND LOWER(SUBSTRING(n.sourceUrl,1,LENGTH(:prefix)))=LOWER(:prefix)
+            ORDER BY n.publishedAt ASC, n.id ASC
+            """)
+    List<NewsItem> findBackfillCandidates(Game game, NewsCategory category, String prefix,
+            java.time.Instant from, java.time.Instant until, org.springframework.data.domain.Pageable page);
+
+    @org.springframework.data.jpa.repository.Query("""
             SELECT COALESCE(MAX(n.id), 0) FROM NewsItem n
             WHERE n.game=:game AND n.category=:category
             AND LOWER(SUBSTRING(n.sourceUrl,1,LENGTH(:prefix)))=LOWER(:prefix)

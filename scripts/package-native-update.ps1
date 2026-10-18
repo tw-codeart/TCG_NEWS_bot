@@ -12,7 +12,7 @@ Copy-Item -LiteralPath $jar -Destination (Join-Path $out 'app.jar')
 Get-ChildItem -LiteralPath (Join-Path $root 'scripts/windows') -File |
     Where-Object {$_.Extension -in @('.cmd','.ps1') -or $_.Name -in @('config.example.env','operations.example.json')} |
     Copy-Item -Destination $out
-foreach($file in @('windows-operations.md','qq-group-subscriptions.md','separated-game-storage.md','automatic-qq-delivery.md','compact-forwards.md','ocg-linked-articles.md','llbot-migration.md')) {
+foreach($file in @('windows-operations.md','news-backfill.md','napcat-auto-recovery.md','napcat-test-panel.md','qq-group-subscriptions.md','separated-game-storage.md','automatic-qq-delivery.md','compact-forwards.md','ocg-linked-articles.md','llbot-migration.md')) {
     Copy-Item -LiteralPath (Join-Path $root ('docs/'+$file)) -Destination $out
 }
 $instructions=@'
@@ -21,7 +21,9 @@ Stop Java/RSSHub, copy app.jar and scripts into the original bundle folder.
 Preserve config.env, data, runtime, rsshub and private callback settings.
 Do not overwrite config.env with config.example.env or downgrade the JAR.
 Keep your selected NapCat/LLBot adapter logged in, then use start-bot.cmd (do not start duplicate services).
-Use check-bot.cmd for status and stop-bot.cmd to stop owned Java/RSSHub.
+Use control-panel.cmd for the GUI, check-bot.cmd for CLI status, and stop-bot.cmd to stop owned Java/RSSHub.
+See napcat-test-panel.md for NapCat setup. Closing the panel does not stop collection.
+See napcat-auto-recovery.md for weekly backfill and the optional managed Node Shell recovery setup.
 install-autostart.cmd is optional and installs a current-user logon task.
 See llbot-migration.md for LLBot setup; use check-qq.cmd for read-only API/online checks.
 See windows-operations.md for QQ launcher, retention and optional Japanese OCR.

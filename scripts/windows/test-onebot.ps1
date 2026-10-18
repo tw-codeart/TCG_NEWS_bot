@@ -53,7 +53,7 @@ try {
 
     $env:QQ_ADAPTER=''
     $null=New-Item -ItemType Directory -Path $testRoot
-    foreach($name in @('common.ps1','onebot-config.ps1','onebot-preflight.ps1','enable-llbot.ps1','enable-group-subscriptions.ps1')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $testRoot }
+    foreach($name in @('common.ps1','port-check.ps1','onebot-config.ps1','onebot-preflight.ps1','enable-llbot.ps1','enable-group-subscriptions.ps1')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $testRoot }
     $configPath=Join-Path $testRoot 'config.env'
     $config=@('QQ_API_BASE_URL=http://onebot.example','QQ_ACCESS_TOKEN=synthetic-api-token',('QQ_COMMAND_SECRET='+$secret),
         'QQ_TEST_GROUP_ID=42','QQ_ENABLED=true','RSSHUB_POLLING_ENABLED=true','QQ_GROUP_SUBSCRIPTIONS_ENABLED=true',

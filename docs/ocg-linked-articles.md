@@ -54,7 +54,8 @@ was inspected in the browser. It contains `article > header h1`,
 `[data-news-rich-text]` labels and image buttons with
 `data-news-image-open`/`data-image-src`. Its script only binds enlargement events.
 
-The parser selects the immediate image block after `新規カード` or `新カード`.
+The parser selects consecutive image blocks after `新規カード` or `新カード`,
+stopping at the next text block so reprints and product art stay excluded.
 The supplied page yields five new cards, excluding one reprint, one package
 image, banners and dialog placeholders. It does not infer novelty from artwork,
 dimensions or decoded filenames. Unmarked/changed layouts are skipped or logged;
@@ -67,6 +68,44 @@ from an explicit quoted product followed by `に収録` in the article heading.
 Missing values remain absent; no card names/effects or translations are guessed.
 The existing formatter removes visible URLs in QQ image mode while retaining
 them in data/console output. Official images/watermarks remain unchanged.
+
+On 2026-10-18 the supplied [Movie Box article](https://yu-gi-oh.jp/news/4pai9s7t1s/)
+was inspected in the in-app browser. Its three new-card images occupy two grids
+(one plus two); the previous parser stopped after the first grid. Both grids
+are now parsed. Original article paragraphs and line breaks are stored in the
+nullable `articleText` field and included by the shared notification formatter.
+The text includes clearly labelled reprint lists and product details; selected
+images still come only from explicit new-card sections. This is HTML text
+extraction, not OCR or translation. No screenshot service is added.
+Identical visible metadata/text is displayed once per QQ packet. QQ still removes
+visible URLs and marks text truncated over 6000 code points; full extracted text
+remains in H2. Scripts, hidden elements, dialogs and banners are excluded.
+
+`CARDニュース(OCG)` notices mentioning a V-Jump article are also inspected when
+they contain an expanded official article link; an OCG-tagged article with an
+explicit new-card section is still required. The ordinary OCG account continues
+to recognize `収録カード公開` and retain every attachment separately.
+Existing post/image identities and successful delivery stamps are unchanged.
+Previously stored rows are not automatically rewritten with article text or
+resent. Newly recovered missing images still follow history suppression and
+explicit backfill rules.
+
+The supplied X examples were published on October 15 and October 14 respectively.
+On October 18 the panel's updated weekly range covers October 11–17, including
+both examples when RSSHub or H2 still contains them. An explicit narrower range
+is also available:
+
+```powershell
+$preview = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/api/notifications/backfill/preview?game=YUGIOH_OCG&from=2026-10-14&through=2026-10-17'
+$preview | ConvertTo-Json -Depth 5
+# Confirm only after reviewing the returned selection:
+Invoke-RestMethod -Method Post -Uri ('http://127.0.0.1:8080/api/notifications/backfill/confirm?previewId=' + $preview.previewId)
+```
+
+Direct HTTP and isolated Edge were blocked again on the development PC on
+October 18, while the in-app browser displayed the official article. This does
+not establish unattended article retrieval on the notebook. Run the packaged
+read-only article check before enabling the second account.
 
 Only HTTPS `yu-gi-oh.jp/news/<slug>/` articles and `/media/cms/v1/` images are
 accepted. RSSHub must expand article links; arbitrary sites and `t.co` redirects

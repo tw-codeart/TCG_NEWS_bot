@@ -1,5 +1,9 @@
 {
   "qqLauncherPath": "",
+  "napcatAutoRecover": false,
+  "napcatDirectory": "",
+  "napcatQuickLoginAccount": "",
+  "qqWebUiUrl": "http://127.0.0.1:6099/webui/",
   "preventSleep": true,
   "desktopAlerts": true
 }

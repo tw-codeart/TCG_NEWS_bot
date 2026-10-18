@@ -9,6 +9,14 @@ import java.time.LocalDate;
 import static org.assertj.core.api.Assertions.*;
 
 class OcgRssHubFeedParserTest {
+    @Test void recognizesTheUsersCastleOfVampireHeadingAndKeepsEveryAttachment() throws Exception {
+        String heading="𝕴𝕸𝕸𝕺𝕽𝕿𝕬𝕷 𝐈𝐌𝐌𝐎𝐑𝐓𝐀𝐋 𝐏𝐇𝐎𝐄𝐍𝐈𝐗 𖤐 収録カード公開 𖤐 ◤キャッスル・オブ・ヴァンパイア◢ 収録‼";
+        var items=new OcgRssHubFeedParser().parse(feed(heading,
+                "<img src='https://pbs.twimg.com/media/card-a?format=jpg&amp;name=orig'>"
+                +"<img src='https://pbs.twimg.com/media/card-b?format=jpg&amp;name=orig'>",1002));
+        assertThat(items).hasSize(2).allMatch(item -> item.getTitle().equals(heading));
+        assertThat(items).extracting(com.twcodeart.tcgnews.news.NewsItem::getImageUrl).doesNotHaveDuplicates();
+    }
     @Test
     void acceptsTheSuppliedAnnouncementHeadingPreservesUnicodeAndFiltersUnwantedOrMalformedEntries() throws Exception {
         byte[] xml;

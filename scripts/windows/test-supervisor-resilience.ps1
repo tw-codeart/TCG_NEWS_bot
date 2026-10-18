@@ -51,7 +51,7 @@ http.createServer((req,res)=>{
 '@ | Set-Content -LiteralPath (Join-Path $fixture 'fixture-service.mjs') -Encoding ASCII
     foreach($definition in @(@{file='start-app.ps1';kind='java'},@{file='start-rsshub.ps1';kind='rss'})) {
         $command='& '''+$node.Replace("'","''")+''' (Join-Path $PSScriptRoot ''fixture-service.mjs'') '''+$definition.kind+''''+[Environment]::NewLine+'exit $LASTEXITCODE'
-        [IO.File]::WriteAllText((Join-Path $fixture $definition.file),$command)
+        [IO.File]::WriteAllText((Join-Path $fixture $definition.file),$command,(New-Object Text.UTF8Encoding($true)))
     }
     # Only observation cadence/startup grace are accelerated. Production retry delay stays 60 seconds.
     $runPath=Join-Path $fixture 'run-bot.ps1'
@@ -88,11 +88,15 @@ function Start-Process {
     Remove-Item -LiteralPath ($statusPath+'.tmp') # Empty directory created by this test only.
     Wait-For { Test-Path -LiteralPath $statusPath -PathType Leaf } 20 'status publication recovers'
     Assert-True (([IO.File]::ReadAllText($statusPath)|ConvertFrom-Json).health -match 'JAVA_RESTART_PENDING') 'pending restart is visible'
+    $offlineSnapshot=[IO.File]::ReadAllText($statusPath)|ConvertFrom-Json
+    Assert-True ($offlineSnapshot.qqHealth -eq 'QQ_OFFLINE_RELOGIN_REQUIRED' -and $offlineSnapshot.qqUnhealthySince -and $offlineSnapshot.qqLastCheckedAt) 'first observed offline timestamp published'
     Wait-For { Test-Path (Join-Path $fixture 'java-pid.txt') } 100 'Java retries after real 60-second backoff'
     Assert-True ([int][IO.File]::ReadAllText((Join-Path $fixture 'rss-pid.txt')) -eq $rssPid) 'unrelated RSS worker was not restarted'
     Assert-True (-not $supervisor.HasExited) 'supervisor survives alert launch failures'
     'online' | Set-Content -LiteralPath (Join-Path $fixture 'qq-state.txt') -Encoding ASCII
     Wait-For { ([IO.File]::ReadAllText($statusPath)|ConvertFrom-Json).health -eq 'ALL_HEALTHY' } 20 'QQ/Java health recovers'
+    $onlineSnapshot=[IO.File]::ReadAllText($statusPath)|ConvertFrom-Json
+    Assert-True ($onlineSnapshot.qqHealth -eq 'QQ_OK' -and $onlineSnapshot.qqLastHealthyAt -and -not $onlineSnapshot.qqUnhealthySince) 'online timestamp and cleared outage published'
     Assert-True (Test-Path (Join-Path $fixture 'alert-attempts.txt')) 'alert failure actually injected'
     Assert-True ((Read-TestText $stdout) -match 'OPERATIONS_ALERT_START_FAILED') 'safe alert error reported'
     Assert-True (((Read-TestText $stdout)+(Read-TestText $stderr)) -notmatch 'synthetic private') 'private failure text not logged'
@@ -107,6 +111,12 @@ function Start-Process {
     $result=@{powershell=$PSVersionTable.PSVersion.ToString();logFailureSurvived=$true;statusFailureSurvived=$true;alertFailureSurvived=$true;startRetrySeconds=60;unrelatedWorkerSurvived=$true;statusRecovered=$true;singletonPreserved=$true;ownedShutdownVerified=$true;realQqSent=$false}
     if($ResultPath) { [IO.File]::WriteAllText($ResultPath,($result|ConvertTo-Json));Copy-Item -LiteralPath $stdout -Destination ($ResultPath+'.stdout.log');Copy-Item -LiteralPath $stderr -Destination ($ResultPath+'.stderr.log') }
     Write-Host 'PASS: real supervisor survives injected failures, retries with backoff, retains unrelated worker, recovers status, rejects duplicates and stops only owned workers.'
+} catch {
+    if($ResultPath) {
+        $diagnostics=@{failure=$_.Exception.Message;supervisorExited=($null -eq $supervisor -or $supervisor.HasExited);files=@(Get-ChildItem -LiteralPath $fixture -File|Select-Object -ExpandProperty Name);stdout=(Read-TestText (Join-Path $fixture 'supervisor-output.log'));stderr=(Read-TestText (Join-Path $fixture 'supervisor-error.log'))}
+        [IO.File]::WriteAllText(($ResultPath+'.failure.json'),($diagnostics|ConvertTo-Json -Depth 4))
+    }
+    throw
 } finally {
     foreach($process in @($supervisor,$qq,$duplicate)) {
         try { Stop-OwnedTree $process }

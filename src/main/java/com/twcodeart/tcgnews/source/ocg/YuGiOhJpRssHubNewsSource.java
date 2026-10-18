@@ -45,7 +45,7 @@ public class YuGiOhJpRssHubNewsSource implements NewsSource {
                     var item=new NewsItem(Game.YUGIOH_OCG,NewsCategory.CARD_REVEAL,post.title(),article.productName(),null,
                             post.publishedAt()==null?null:post.publishedAt().atZone(ZoneId.of("Asia/Tokyo")).toLocalDate(),
                             post.publishedAt(),image,post.sourceUrl(),PostImageContentHash.generate(Game.YUGIOH_OCG,post.sourceUrl(),image));
-                    item.setArticleUrl(url);items.add(item);
+                    item.setArticleUrl(url);item.setArticleText(article.text());items.add(item);
                 }
             }catch(IOException|IllegalArgumentException failure){failed++;lastFailure=failure;log.error("Official JP article failed; other entries continue: sourceUrl={}, articleUrl={}",post.sourceUrl(),url,failure);}
         }

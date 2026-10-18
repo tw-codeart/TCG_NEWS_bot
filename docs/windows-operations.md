@@ -1,5 +1,10 @@
 # Windows operations and optional Japanese OCR
 
+For the NapCat test build, start with the Chinese `control-panel.cmd` GUI. See
+[NapCat test panel](napcat-test-panel.md) for fresh setup, visible offline times,
+manual test previews and the single-active-account limitation. Supervisor v5
+publishes observed QQ health timestamps; this does not guarantee permanent login.
+
 QQ operations now support both NapCat and LLBot over OneBot 11. See
 [LLBot migration and daily checks](llbot-migration.md); `check-qq.cmd` checks the
 selected adapter's API/online status. Existing NapCat entry points remain compatible.
@@ -13,7 +18,7 @@ credentials, NapCat binaries or database files are distributed in an update.
 Stop the previously started Java and RSSHub windows before using `start-bot.cmd`.
 Leave NapCat logged in. Automatic QQ delivery must already be configured/enabled
 (`QQ_ENABLED=true` and `RSSHUB_POLLING_ENABLED=true`). The supervisor starts the
-existing RSSHub and Java scripts hidden, checks health every 15 seconds, and
+existing RSSHub and Java scripts hidden, waits 15 seconds after each health check, and
 restarts its own exited workers with 60-second exponential backoff capped at
 15 minutes. After ten minutes of uptime the failure backoff resets.
 
@@ -22,6 +27,15 @@ occupied, the supervisor reports an external process and monitors it without
 taking ownership or starting a duplicate. It does not restart an alive but slow
 Java process: a send might be in flight. A stale poll is reported instead.
 The shared folder mutex rejects a second supervisor instance.
+
+Supervisor v4 uses one shared port check in manual/setup scripts and worker
+supervision. Empty results and Windows `ObjectNotFound`/`CmdletizationQuery_NotFound`
+mean no listener. Permission/unexpected query failures do **not** mean free ports:
+startup reports `PORT_CHECK_UNAVAILABLE` before workers are launched. During a
+later worker restart, `JAVA_PORT_CHECK_FAILED_RETRY_PENDING` or
+`RSSHUB_PORT_CHECK_FAILED_RETRY_PENDING` reports the failure and schedules backoff
+without starting a possible duplicate. Fix Windows query permissions and retry;
+do not kill unrelated processes based on port-check failures.
 
 Supervisor v3 isolates diagnostic failures: an unwritable operations log/status
 snapshot, an unreadable stop signal, or a failed popup launch is reported with a
@@ -51,6 +65,7 @@ Optional `operations.local.json` (private, ignored by Git):
 ```json
 {
   "qqLauncherPath": "D:/NapCat/launcher.bat",
+  "qqWebUiUrl": "http://127.0.0.1:6099/webui/",
   "preventSleep": true,
   "desktopAlerts": true
 }
@@ -60,7 +75,7 @@ Use your existing actual launcher path; the example is not an installer path.
 For LLBot, use its actual launcher instead. An existing `napcatLauncherPath` is
 supported only when `QQ_ADAPTER` is unset or `napcat`; LLBot ignores that old path.
 Use `/` or escape backslashes in JSON. An empty path means start NapCat manually.
-When configured and its API is unreachable, the supervisor requests one launcher
+The legacy launcher mode remains available. When configured and its API is unreachable, the supervisor requests one launcher
 start. It never repeatedly spawns QQ or terminates another QQ session. Use the
 WebUI to log in if necessary. A configured API that responds but reports offline
 is detected through OneBot `get_status.data.online`, not a cached bot identity.
@@ -69,6 +84,21 @@ Known NapCat versions support recovery attempts after silent disconnection;
 failed quick login still requires scanning. This project cannot bypass login
 expiry, account verification or guarantee an always-online QQ session. See the
 [official NapCat release notes](https://github.com/NapNeko/NapCatQQ/releases).
+
+The optional QQ launcher is best effort: a missing/invalid path reports
+`QQ_LAUNCH_PATH_INVALID`, and a process-launch error reports
+`QQ_LAUNCH_START_FAILED`. Both allow supervised Java/RSSHub to start, so saved
+RSSHub news can remain pending until QQ recovers. Correct the path or log in/start
+the adapter manually. A successful `QQ_LAUNCH_REQUESTED` only confirms the launcher
+process was requested, not that login completed; ongoing OneBot health checks
+still determine online status. This legacy mode does not repeatedly launch QQ.
+
+An additional opt-in managed Node Shell mode is available through the panel's
+**自动恢复设置** button. It starts only an owned NapCat worker, attempts saved-ticket
+quick login and restarts after sustained offline status/process exit with bounded
+retries. Intentional collection stop also stops that managed worker. See
+[NapCat auto recovery](napcat-auto-recovery.md) for setup, timing and human-login
+limitations. Other manually started QQ instances remain untouched.
 
 Health changes are logged to `logs/operations.log`. Offline/auth/API problems,
 source failures, stale polling and delivery failures produce a local desktop

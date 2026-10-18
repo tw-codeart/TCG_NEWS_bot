@@ -23,6 +23,23 @@ class YuGiOhJpParsersTest {
         for(int i=6;i<=15;i++)grid.append("<button data-news-image-open data-image-src='/media/cms/v1/new-"+i+".webp'></button>");
         assertThat(new YuGiOhJpArticleParser().parse(document.outerHtml(),URL).imageUrls()).hasSize(15);
     }
+    @Test void readsConsecutiveImageGridsLikeTheSuppliedMovieBoxArticle() throws Exception {
+        var article=new YuGiOhJpArticleParser().parse(fixture("yugioh-jp-split-grids.html"),URL);
+        assertThat(article.imageUrls()).containsExactly(
+                "https://yu-gi-oh.jp/media/cms/v1/card-one.webp",
+                "https://yu-gi-oh.jp/media/cms/v1/card-two.webp",
+                "https://yu-gi-oh.jp/media/cms/v1/card-three.webp");
+        assertThat(article.text()).contains("新カード3枚と再録カード", "新規カード", "再録カード", "Existing card A\nExisting card B")
+                .doesNotContain("script-only", "dialog-only", "outside-article", "hidden-text");
+    }
+    @Test void preservesParagraphsAndLineBreaksWithoutRepeatingNestedListText() throws Exception {
+        String changed=html().replace("<p>※カード画像は制作中のものです。</p>",
+                "<p>原文の説明<br>第二行</p><ul><li><p>List text</p></li></ul><script>script-only</script>");
+        var article=new YuGiOhJpArticleParser().parse(changed,URL);
+        assertThat(article.text()).contains("原文の説明\n第二行", "List text").doesNotContain("script-only");
+        assertThat(article.text().split("List text",-1)).hasSize(2);
+        assertThat(new YuGiOhJpArticleParser().parse(changed.replace("tag=ocg","tag=rush"),URL).text()).isNull();
+    }
     @Test void malformedImageDoesNotBlockOtherCardsAndDateCanBeAbsent() throws Exception {
         String changed=html().replace("datetime=\"2026-10-12T03:00:05.599Z\"", "")
                 .replace("https://yu-gi-oh.jp/media/cms/v1/new-1.webp","https://attacker.example/a.png");
@@ -57,6 +74,15 @@ class YuGiOhJpParsersTest {
         assertThat(new YuGiOhJpFeedParser().parse(feed.getBytes(StandardCharsets.UTF_8)).get(0).title()).contains("新カードと再録カードを公開");
         String article=html().replace("OCG synthetic new cards and reprints","『Synthetic Product』に収録される新カードを公開！");
         assertThat(new YuGiOhJpArticleParser().parse(article,URL).productName()).isEqualTo("Synthetic Product");
+    }
+    @Test void acceptsOcgVJumpArticleNoticesButRequiresTheOfficialLinkedArticle() throws Exception {
+        String changed=fixture("yugioh-jp-feed.xml").replace("【更新情報】CARDニュース(OCG) 新カードと再録カードを公開！",
+                "【更新情報】「CARDニュース（ＯＣＧ）」更新！ Vジャンプ掲載記事：第5回");
+        assertThat(new YuGiOhJpFeedParser().parse(changed.getBytes(StandardCharsets.UTF_8)))
+                .anyMatch(post -> post.title().contains("第5回")&&post.articleUrls().contains(URL));
+        String noArticle=changed.replace("https://yu-gi-oh.jp/news/synthetic-article/","https://unrelated.example/news/a/");
+        assertThat(new YuGiOhJpFeedParser().parse(noArticle.getBytes(StandardCharsets.UTF_8)))
+                .noneMatch(post -> post.sourceUrl().endsWith("/101"));
     }
     @Test void articleFailureDoesNotPreventAnotherPostAndNoPreviewArtworkIsUsed() throws Exception {
         var feed=org.mockito.Mockito.mock(com.twcodeart.tcgnews.source.rsshub.RssHubFeedClient.class);

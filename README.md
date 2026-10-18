@@ -1,5 +1,40 @@
 # TCG News Bot
 
+**Weekly recovery update (2026-10-18):** manual backfill now defaults to the seven
+previous complete Japan dates. The Windows panel includes optional NapCat Node
+Shell recovery: an owned process can restart and attempt saved-ticket quick login,
+with a 120-second offline grace, five-minute cooldown and three-attempt limit.
+External QQ processes, required QR/device verification and normal delivery stamps
+are preserved. Mock/local-process checks do not prove real QQ relogin or overnight
+stability. See [setup and limitations](docs/napcat-auto-recovery.md).
+
+**Manual history backfill:** preview a bounded date range (default the previous
+seven complete Japan calendar dates, excluding today),
+then enqueue missing RSSHub reveal records for the configured test group using
+the existing durable delivery pipeline. The panel includes WS/OCG backfill
+buttons. Deleted send stamps and posts missing from the current feed/database
+cannot be reconstructed. On 2026-10-18, `mvn test` and `mvn package` each passed
+218 tests; local packaged HTTP mocks verified separate-store restart recovery
+and both games' multi-image packets. Real QQ receipt was not tested.
+See [manual news backfill](docs/news-backfill.md).
+
+**NapCat test panel:** the portable Windows bundle now provides a Chinese
+`control-panel.cmd` GUI with live OneBot online/offline checks, observed outage
+times, polling/pending counts and explicit WS/OCG test previews. It reuses the
+existing supervisor and delivery API. One account is active; automatic account
+failover is not implemented. Local mocked PowerShell/UI checks cover this phase;
+real group receipt and laptop stability remain unverified. Java is unchanged.
+See [NapCat test panel setup](docs/napcat-test-panel.md).
+
+**Startup safety:** shared Windows port checks distinguish an empty/no-match
+result from an unavailable query. Unverifiable ports prevent startup; later
+worker retries wait without launching a possible duplicate. Invalid/unstartable
+optional QQ launchers are reported without stopping Java/RSSHub. The launcher
+request remains once per supervisor startup, with no account-login guarantee.
+Windows PowerShell 5.1 checks cover port outcomes, recovery and launcher failures.
+No Java code changed; Maven was not rerun. See
+[Windows operations](docs/windows-operations.md).
+
 **Supervisor failure isolation:** Windows PowerShell 5.1 unit checks and a real
 supervisor with local HTTP/process stubs verified survival of log/status/popup
 failures, a worker-start retry after 60 seconds, continued operation of the other
@@ -17,6 +52,16 @@ group commands. Windows PowerShell 5.1 checks verified configuration preservatio
 adapter identity/online checks and callback generation. Real LLBot login, receipt,
 Japanese OCR and long-running stability remain unverified. See
 [LLBot migration and daily tests](docs/llbot-migration.md).
+
+**Article extraction update (2026-10-18):** `mvn test` and `mvn package` each passed
+225 tests. Original
+article paragraphs are stored and formatted alongside all new-card images across
+consecutive grids. The supplied Movie Box page was inspected in the in-app
+browser; its minimal DOM replay returned all three new-card image URLs. Direct
+HTTP and isolated Edge were still blocked on this PC. Unattended live article
+retrieval and real QQ receipt remain unverified. Existing post/image hashes and
+delivery stamps are retained; stored duplicate rows are not automatically enriched
+or resent. See [OCG linked articles](docs/ocg-linked-articles.md).
 
 **Linked OCG articles (2026-10-12):** `mvn test` and `mvn package` each passed 201
 tests. An additional opt-in `@yu_gi_oh_jp` RSSHub source follows official OCG article

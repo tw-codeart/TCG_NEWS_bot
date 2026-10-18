@@ -41,6 +41,7 @@ public class PlainTextNotificationFormatter implements NotificationFormatter {
         if (!details.isEmpty()) {
             sections.add(String.join("\n", details));
         }
+        if(hasText(newsItem.getArticleText()))sections.add("Article text (original):\n"+newsItem.getArticleText().strip());
         // The model requires sourceUrl; optional image URLs are links, never fetched.
         sections.add("Official source:\n" + newsItem.getSourceUrl().strip());
         if(newsItem.getArticleUrl()!=null&&!newsItem.getArticleUrl().isBlank())sections.add("Article:\n"+newsItem.getArticleUrl().strip());

@@ -32,6 +32,11 @@ public class RssHubQqNotificationService {
     public int notificationLimit() { return properties.getNotificationBatchLimit(); }
     public void prepareSource(String sourceId) { store.prepare(sourceId); }
 
+    /** Establish history/queue state without invoking any notification transport. */
+    public void captureSource(String sourceId, boolean completedNonemptySnapshot) {
+        store.capture(sourceId, completedNonemptySnapshot);
+    }
+
     public int notifySavedItems(String sourceId, NewsIngestionService.IngestionResult result,
                                 boolean ingestionCompleted, int availableMessages) {
         try {

@@ -93,6 +93,8 @@ class OcgDualAccountPipelineTest {
         verify(group,times(1)).sendBatch(argThat(messages->messages.size()==6));
         var second=run();assertThat(second.saved()).isZero();verify(group,times(1)).sendBatch(anyList());
         var preview=query.findLatestXPosts(Game.YUGIOH_OCG,1);assertThat(preview.get(0)).hasSize(5);
+        assertThat(preview.get(0)).allMatch(item->item.getArticleText()!=null&&item.getArticleText().contains("新規カード"));
+        verify(group).sendBatch(argThat(messages->messages.stream().anyMatch(message->message.text().contains("Article text (original):"))));
         assertThat(query.findXPost(Game.YUGIOH_OCG,"101").get(0)).allMatch(item->item.getArticleUrl().endsWith("/article-101/"));
         assertThat(groups.status(Game.YUGIOH_OCG).sentItems()).isEqualTo(6);
     }

@@ -1,4 +1,5 @@
 # Windows PowerShell 5.1 compatible. All persisted messages are fixed codes, not upstream bodies.
+. (Join-Path $PSScriptRoot 'port-check.ps1')
 function Get-BotInstanceKey([string]$Directory) {
     $sha=[System.Security.Cryptography.SHA256]::Create()
     try { return ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($Directory.ToLowerInvariant())))).Replace('-','').Substring(0,16) }
@@ -58,7 +59,7 @@ function Update-BotWorker($Worker,[DateTimeOffset]$Now) {
     }
     if(-not $Worker.process -and $Now -ge $Worker.nextStart) {
         try {
-            if(Get-NetTCPConnection -LocalPort $Worker.definition.port -State Listen -ErrorAction SilentlyContinue) {
+            if(Test-BotPortOccupied $Worker.definition.port) {
                 $Worker.external=$true;Write-OperationEvent ($name+'_PORT_TAKEN_RESTART_ABORTED');return
             }
             $Worker.process=Start-BotWorker $Worker.definition.script
@@ -67,7 +68,8 @@ function Update-BotWorker($Worker,[DateTimeOffset]$Now) {
         } catch {
             $Worker.failures++;$Worker.nextStart=$Now.AddSeconds((Get-RestartDelay $Worker.failures))
             $Worker.process=$null
-            Write-OperationEvent ($name+'_START_FAILED_RETRY_PENDING')
+            if($_.Exception.Message -like 'PORT_CHECK_UNAVAILABLE:*') { Write-OperationEvent ($name+'_PORT_CHECK_FAILED_RETRY_PENDING') }
+            else { Write-OperationEvent ($name+'_START_FAILED_RETRY_PENDING') }
         }
     }
     if($Worker.process -and ($Now-$Worker.startedAt).TotalMinutes -ge 10) { $Worker.failures=0 }
@@ -82,6 +84,12 @@ function Get-QqHealth([Uri]$BaseUri,[hashtable]$Headers) {
         if($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -in @(401,403)) { return 'QQ_AUTH_FAILED' }
         return 'QQ_UNAVAILABLE'
     }
+}
+function Get-QqObservation($Previous,[string]$Health,[DateTimeOffset]$CheckedAt) {
+    $healthy=$Previous.qqLastHealthyAt;$badSince=$Previous.qqUnhealthySince
+    if($Health -eq 'QQ_OK'){$healthy=$CheckedAt.ToString('o');$badSince=$null}
+    elseif(-not $badSince){$badSince=$CheckedAt.ToString('o')}
+    return @{qqHealth=$Health;qqLastCheckedAt=$CheckedAt.ToString('o');qqLastHealthyAt=$healthy;qqUnhealthySince=$badSince}
 }
 function Get-PollingHealth($Status,[DateTimeOffset]$Now,[int]$IntervalSeconds) {
     if(-not $Status.pollingEnabled) { return 'POLLING_DISABLED' }
@@ -110,5 +118,17 @@ function Stop-OwnedTree($Process) {
 }
 function Start-BotWorker([string]$Name) {
     return Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot $Name)+'"')) -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -PassThru
+}
+function Start-QqAdapterOnce([string]$Launcher) {
+    if(-not [IO.Path]::IsPathRooted($Launcher) -or -not (Test-Path -LiteralPath $Launcher -PathType Leaf) -or [IO.Path]::GetExtension($Launcher) -notin @('.bat','.cmd','.exe')) {
+        Write-OperationEvent 'QQ_LAUNCH_PATH_INVALID';return $false
+    }
+    try {
+        $env:TCG_QQ_LAUNCHER=$Launcher
+        $null=Start-Process 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'launch-qq.ps1')+'"')) -WorkingDirectory (Split-Path -Parent $Launcher) -WindowStyle Hidden -PassThru
+        Write-OperationEvent 'QQ_LAUNCH_REQUESTED';return $true
+    } catch {
+        Write-OperationEvent 'QQ_LAUNCH_START_FAILED';return $false
+    }
 }
 function Get-RestartDelay([int]$Failures) { return [int][Math]::Min(900,30*[Math]::Pow(2,[Math]::Min($Failures,5))) }

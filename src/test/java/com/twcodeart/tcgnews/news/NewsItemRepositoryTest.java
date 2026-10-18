@@ -19,6 +19,19 @@ class NewsItemRepositoryTest {
     private TestEntityManager entityManager;
 
     @Test
+    void persistsLongOriginalArticleTextWithoutChangingPostImageIdentity() {
+        var item=new NewsItem(Game.YUGIOH_OCG,NewsCategory.CARD_REVEAL,"Original post",null,null,
+                "https://yu-gi-oh.jp/media/cms/v1/card.webp","https://x.com/yu_gi_oh_jp/status/101","c".repeat(64));
+        String text="公式記事の原文\n".repeat(1000);
+        item.setArticleUrl("https://yu-gi-oh.jp/news/article/");item.setArticleText(text);
+        var saved=repository.saveAndFlush(item);entityManager.clear();
+        var reloaded=repository.findById(saved.getId()).orElseThrow();
+        assertThat(reloaded.getArticleText()).isEqualTo(text);
+        assertThat(reloaded.getArticleUrl()).isEqualTo(item.getArticleUrl());
+        assertThat(reloaded.getContentHash()).isEqualTo("c".repeat(64));
+    }
+
+    @Test
     void persistsAndReloadsCardRevealWithCreationTimestamp() {
         NewsItem newsItem = new NewsItem(
                 Game.WEISS_SCHWARZ,

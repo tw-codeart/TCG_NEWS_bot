@@ -53,6 +53,11 @@ public class NewsItem {
     public String getArticleUrl() { return articleUrl; }
     public void setArticleUrl(String value) { articleUrl = value; }
 
+    @jakarta.persistence.Lob
+    private String articleText;
+    public String getArticleText() { return articleText; }
+    public void setArticleText(String value) { articleText = value; }
+
     @Column(name = "content_hash", nullable = false, length = 64, unique = true)
     private String contentHash;
 

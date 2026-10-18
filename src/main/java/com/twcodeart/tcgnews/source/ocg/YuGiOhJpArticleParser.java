@@ -30,16 +30,17 @@ public class YuGiOhJpArticleParser {
         var body=article.selectFirst("[data-news-body] > div");
         if(body==null)throw new IllegalArgumentException("Official article body structure missing");
         var images=new ArrayList<String>();
-        boolean nextNewCardBlock=false;
+        boolean newCardSection=false;
         for(Element block:body.children()) {
             if(block.hasAttr("data-news-rich-text")) {
-                // A marker applies only to the following image block, never to later product art.
-                nextNewCardBlock=block.select("p, h2, h3").stream()
+                // A labelled section may contain several consecutive image grids.
+                // The next text block closes it, so reprints/product art stay excluded.
+                newCardSection=block.select("p, h2, h3").stream()
                         .map(Element::text).anyMatch(text -> "新規カード".equals(text.strip())||"新カード".equals(text.strip()));
                 continue;
             }
-            if(!nextNewCardBlock)continue;
-            nextNewCardBlock=false;
+            if(!newCardSection)continue;
+            if(block.select("[data-news-rich-text]").size()>0){newCardSection=false;continue;}
             for(var button:block.select("[data-news-image-open]")) {
                 try {
                     String image=button.absUrl("data-image-src");
@@ -58,9 +59,17 @@ public class YuGiOhJpArticleParser {
         var product=java.util.regex.Pattern.compile("『([^』]+)』\\s*に収録").matcher(heading.text());
         String productName=product.find()?product.group(1):null;
         if(productName!=null&&productName.length()>1000){log.warn("Ignoring oversized article product name: articleUrl={}",url);productName=null;}
-        return new Article(heading.text(),publishedAt,List.copyOf(images),productName);
+        var textBody=body.clone();
+        textBody.select("script,style,iframe,dialog,button,[hidden],[aria-hidden=true]").remove();
+        var paragraphs=textBody.select("p,h2,h3,li");
+        String text=paragraphs.isEmpty()?textBody.text():paragraphs.stream()
+                .filter(element -> element.parents().stream().noneMatch(parent -> paragraphs.contains(parent)))
+                .map(Element::wholeText).map(String::strip).filter(value -> !value.isBlank())
+                .collect(java.util.stream.Collectors.joining("\n\n"));
+        return new Article(heading.text(),publishedAt,List.copyOf(images),productName,text.isBlank()?null:text);
     }
-    public record Article(String title,Instant publishedAt,List<String> imageUrls,String productName){
-        public Article(String title,Instant publishedAt,List<String> imageUrls){this(title,publishedAt,imageUrls,null);}
+    public record Article(String title,Instant publishedAt,List<String> imageUrls,String productName,String text){
+        public Article(String title,Instant publishedAt,List<String> imageUrls,String productName){this(title,publishedAt,imageUrls,productName,null);}
+        public Article(String title,Instant publishedAt,List<String> imageUrls){this(title,publishedAt,imageUrls,null,null);}
     }
 }
